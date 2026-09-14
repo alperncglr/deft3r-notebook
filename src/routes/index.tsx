@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const mascot = "/media/deft3r-notebook-mascot.png";
+const sleepingMascot = "/media/deft3r-mascot-sleeping.png";
 const writingVideo = "/media/deft3r-open-and-continuous-writing-transparent.webm";
 
 
@@ -171,10 +172,13 @@ function Index() {
       <section className="relative z-10 mx-auto flex min-h-[calc(100vh-84px)] max-w-5xl flex-col px-5 pb-8 sm:px-8">
         {state === "ready" && (
           <div className="ready-stage mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center text-center">
-            <div className="relative">
+            <div className="mascot-enter relative">
               <span className="mascot-shadow" />
-              <img src={mascot} alt="Gülümseyen yeşil defter maskotu" width={1024} height={1024} className="mascot-enter relative w-[min(72vw,330px)] object-contain" />
-              <span className="mascot-wave" aria-hidden="true">Merhaba!</span>
+              <img src={mascot} alt="Gülümseyen yeşil defter maskotu" width={1024} height={1024} className="mascot-bob relative w-[min(72vw,330px)] object-contain" />
+              <span className="mascot-wave" aria-hidden="true">
+                <b>Merhaba!</b>
+                <i />
+              </span>
             </div>
             <h1 className="mt-1 font-display text-3xl font-bold sm:text-4xl">Bugünkü toplantı ne hakkında?</h1>
             <p className="mt-2 text-sm text-muted-foreground">İsim vermeden de hemen başlayabilirsin.</p>
@@ -229,10 +233,17 @@ function Index() {
 
         {state === "summary" && (
           <div className="summary-stage mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center">
-            <img src={mascot} alt="DEFT3R defter maskotu" width={1024} height={1024} className="summary-mascot w-36 object-contain" />
+            <div className="sleepy-mascot" role="img" aria-label="Yere oturmuş uyuyan DEFT3R maskotu">
+              <span className="sleepy-z sleepy-z-1" aria-hidden="true">z</span>
+              <span className="sleepy-z sleepy-z-2" aria-hidden="true">z</span>
+              <span className="sleepy-z sleepy-z-3" aria-hidden="true">Z</span>
+              <img src={sleepingMascot} alt="" width={1024} height={1024} className="sleepy-mascot-img object-contain" />
+              <span className="sleepy-floor" aria-hidden="true" />
+            </div>
             <p className="mt-2 text-xs font-semibold uppercase text-muted-foreground">{meetingName} · {time}</p>
             <h1 className="mt-2 text-center font-display text-3xl font-bold">Toplantı tamamlandı</h1>
             <p className="mt-2 text-center text-sm text-muted-foreground">Ne hazırlamamı istersin? Hazır olunca dosya otomatik iner.</p>
+
 
             <div className="mt-6 grid w-full gap-3 sm:grid-cols-2" aria-live="polite">
               <Button
@@ -256,12 +267,7 @@ function Index() {
               </Button>
             </div>
 
-            {summaryStatus === "done" && (
-              <div className="mt-6 grid w-full gap-4 sm:grid-cols-2">
-                <section className="summary-sheet summary-card-in"><h2>Toplantı özeti</h2><p>Ekip, bu haftanın ana odağını kullanıcı testleri olarak belirledi. Test sonuçları cuma sabahı paylaşılacak.</p></section>
-                <section className="summary-sheet summary-card-in summary-card-in-2"><h2>Yapılacaklar</h2><ul><li><Check /> Kullanıcı testlerini tamamla</li><li><Check /> Bulguları ekiple paylaş</li></ul></section>
-              </div>
-            )}
+
 
             <Button variant="quiet" className="mt-5" onClick={reset}><RotateCcw className="size-4" /> Yeni toplantı</Button>
           </div>

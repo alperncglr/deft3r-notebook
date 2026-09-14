@@ -1,36 +1,26 @@
-# DEFT3R Akıllı Toplantı Defteri
+# Defter Interface Studio
 
-DEFT3R maskotlu toplantı notu arayüzü. Maskot görselleri ve videoları `public/media` içinde projeye dahildir; yerel çalıştırmada ayrıca bir medya servisine ihtiyaç duyulmaz.
+https://github.com/alperncglr/deft3r-notebook/settings
 
-## Yerelde çalıştırma
+Şu projeyi çeksene tamamen bunun arayüzünde değişiklikler yapacağız, bir de githubda direkt olarak  bu projeye bağla sistemi
 
-Gereksinimler: Bun 1.2+ veya güncel Node.js.
+This project was built with [Lovable](https://lovable.dev).
 
-```bash
-bun install
-bun run dev
-```
+## Build with Lovable
 
-Ardından tarayıcıda `http://localhost:3000` adresini açın. Terminal farklı bir adres gösterirse terminaldeki bağlantıyı kullanın.
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/6682f594-3581-4bda-b142-155050f763dd).
 
-Node.js/npm ile:
+- **Ship faster**: describe what you want to build and Lovable handles the code.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
-```bash
-npm install
+## Development
+
+Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+
+```sh
+git clone <this-repository-url>
+cd <repository-name>
+npm i
 npm run dev
 ```
-
-## Üretim paketi
-
-```bash
-bun run build
-```
-
-## Medya dosyaları
-
-Yeni logo renkli sürümler `public/media/` klasöründedir. Eski renkli özgün sürümler aynı dosya adlarıyla `public/media/original/` klasöründedir:
-
-- `deft3r-notebook-mascot.png`
-- `deft3r-video-waiting-frame.png`
-- `deft3r-open-and-continuous-writing.mp4`
-- `deft3r-open-and-continuous-writing-transparent.webm`

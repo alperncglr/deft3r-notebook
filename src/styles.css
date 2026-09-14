@@ -191,8 +191,88 @@
   animation: foil-gleam 4.8s ease-in-out infinite;
 }
 .mascot-enter { animation: mascot-enter .7s cubic-bezier(.2,.8,.2,1) both; filter: drop-shadow(0 18px 15px oklch(0.3 0.03 68 / .17)); }
+.mascot-bob { animation: mascot-bob 4.2s ease-in-out .8s infinite; }
+@keyframes mascot-bob { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-7px) rotate(-1.2deg); } }
 .mascot-shadow { position: absolute; inset-inline: 17%; bottom: 7%; height: 8%; border-radius: 50%; background: oklch(0.3 0.03 68 / .13); filter: blur(10px); }
-.mascot-wave { position: absolute; right: -2%; top: 22%; padding: .5rem .7rem; border-radius: 1rem 1rem 1rem .2rem; background: var(--card); box-shadow: 0 5px 18px var(--paper-shadow); font-family: var(--font-display); font-weight: 800; animation: wave 2.5s ease-in-out infinite; }
+
+/* Greeting bubble — appears with the mascot, then gently bobs. */
+.mascot-wave {
+  position: absolute;
+  right: -6%;
+  top: 16%;
+  display: inline-flex;
+  align-items: center;
+  transform-origin: bottom left;
+  animation: bubble-pop .5s cubic-bezier(.2,1.5,.4,1) .55s both, wave 3.2s ease-in-out 1.1s infinite;
+}
+.mascot-wave b {
+  position: relative;
+  z-index: 1;
+  display: block;
+  padding: .55rem .95rem;
+  border-radius: 1.15rem 1.15rem 1.15rem .35rem;
+  background: linear-gradient(150deg, var(--card), oklch(0.98 0.02 85));
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 24px var(--paper-shadow), inset 0 1px 0 oklch(1 0 0 / .7);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+.mascot-wave i {
+  position: absolute;
+  left: .35rem;
+  bottom: -.3rem;
+  width: .85rem;
+  height: .85rem;
+  border-radius: 0 0 0 .25rem;
+  background: var(--card);
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  transform: rotate(12deg) skewX(-10deg);
+}
+@keyframes bubble-pop { from { opacity: 0; transform: scale(.5) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+/* Sleeping mascot on the summary screen. */
+.sleepy-mascot { position: relative; width: min(62vw, 240px); }
+.sleepy-mascot-img {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  transform-origin: 50% 92%;
+  filter: drop-shadow(0 14px 12px oklch(0.3 0.03 68 / .16));
+  animation: sleepy-sit .9s cubic-bezier(.2,.9,.25,1) both, sleepy-breathe 3.6s ease-in-out .9s infinite;
+}
+.sleepy-floor { position: absolute; z-index: 0; left: 6%; right: 6%; bottom: 2%; height: 14px; border-radius: 50%; background: oklch(0.3 0.03 68 / .16); filter: blur(7px); }
+@keyframes sleepy-sit {
+  0% { opacity: 0; transform: translateY(-18px) scale(.94); }
+  70% { opacity: 1; transform: translateY(3px) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes sleepy-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-2px) scale(1.015); }
+}
+.sleepy-z {
+  position: absolute;
+  z-index: 2;
+  left: 30%;
+  top: 4%;
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: oklch(0.55 0.06 250);
+  opacity: 0;
+  animation: sleepy-z 3.6s ease-in-out infinite;
+}
+.sleepy-z-1 { font-size: .85rem; animation-delay: 0s; }
+.sleepy-z-2 { font-size: 1.15rem; animation-delay: 1.2s; }
+.sleepy-z-3 { font-size: 1.5rem; animation-delay: 2.4s; }
+@keyframes sleepy-z {
+  0% { opacity: 0; transform: translate(0, 0) rotate(-8deg) scale(.7); }
+  18% { opacity: 1; }
+  70% { opacity: .85; }
+  100% { opacity: 0; transform: translate(46px, -78px) rotate(14deg) scale(1.15); }
+}
 .meeting-stage { animation: none; }
 .listening-dot { width: .6rem; height: .6rem; border-radius: 50%; background: oklch(0.67 0.16 145); animation: listening 1.6s ease-in-out infinite; }
 .transcript-scroll { min-height: 260px; max-height: calc(100vh - 250px); scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
@@ -268,7 +348,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .brand-wordmark, .mascot-enter, .mascot-wave, .meeting-stage, .listening-dot, .bubble-in, .meeting-mascot-closed, .meeting-mascot-open, .writing-pen, .summary-stage { animation: none; }
+  .brand-wordmark, .mascot-enter, .mascot-bob, .mascot-wave, .meeting-stage, .listening-dot, .bubble-in, .meeting-mascot-closed, .meeting-mascot-open, .writing-pen, .summary-stage, .sleepy-mascot-img, .sleepy-z { animation: none; }
+  .sleepy-mascot-img { transform: none; }
+  .sleepy-z { opacity: .8; }
   .app-header, .brand-badge, .brand-badge-mascot, .brand-badge-teb, .brand-badge-word, .brand-badge-tag { transition: none; }
   .meeting-mascot-closed { display: none; }
   .meeting-mascot-open { transform: translate(-50%, 58%); opacity: 1; }
