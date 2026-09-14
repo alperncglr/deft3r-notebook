@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 const mascot = "/media/deft3r-notebook-mascot.png";
 const writingVideo = "/media/deft3r-open-and-continuous-writing-transparent.webm";
 
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -92,14 +93,14 @@ function Index() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
       <div aria-hidden="true" className="paper-grid absolute inset-0" />
-      <header className="relative z-20 mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
-        <button className="flex items-center gap-3" onClick={reset} aria-label="DEFT3R başlangıç ekranı">
-          <img src={mascot} alt="" width={1024} height={1024} className="size-11 object-contain" />
+      <header className={cn("app-header relative z-20 mx-auto flex w-full max-w-6xl items-center justify-end px-5 py-5 sm:px-8", state !== "meeting" && "brand-hero")}>
+        <button className="brand-badge" onClick={reset} aria-label="DEFT3R başlangıç ekranı">
+          <img src={mascot} alt="" width={1024} height={1024} className="brand-badge-mascot object-contain" />
           <div className="text-left leading-none">
-            <p className="brand-wordmark text-xl" aria-label="DEFT3R">
+            <p className="brand-wordmark brand-badge-word" aria-label="DEFT3R">
               DEFT3R
             </p>
-            <p className="mt-1 text-[10px] font-semibold uppercase text-muted-foreground">Toplantı defteri</p>
+            <p className="brand-badge-tag mt-1 font-semibold uppercase text-muted-foreground">Toplantı defteri</p>
           </div>
         </button>
         {state === "meeting" && (
