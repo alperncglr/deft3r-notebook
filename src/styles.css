@@ -62,7 +62,7 @@
   --color-primary-hover: var(--primary-hover);
   --font-display: "Nunito", sans-serif;
   --font-sans: "DM Sans", sans-serif;
-  --font-brand: "Cormorant Garamond", Georgia, serif;
+  --font-brand: "Montserrat", "DM Sans", sans-serif;
   --shadow-button: 0 7px 0 var(--button-shadow);
   --shadow-paper: 0 18px 45px var(--paper-shadow);
 }
@@ -178,7 +178,8 @@
   font-family: var(--font-brand);
   font-style: normal;
   font-weight: 700;
-  line-height: .9;
+  font-variant-numeric: lining-nums;
+  line-height: 1;
   color: var(--brand-foil-mid);
   background-image: linear-gradient(105deg, var(--brand-foil-dark) 0%, var(--brand-foil-mid) 38%, var(--brand-foil-light) 48%, var(--brand-foil-mid) 58%, var(--brand-foil-dark) 100%);
   background-size: 280% 100%;
@@ -255,7 +256,7 @@
 .brand-badge-teb { order: 3; height: 2.1rem; flex: none; transition: height .7s cubic-bezier(.22, 1, .36, 1); }
 .app-header.brand-hero .brand-badge-teb { order: 1; height: 3.75rem; }
 .brand-badge-text { order: 2; }
-.brand-badge-word { font-size: 1.25rem; transition: font-size .7s cubic-bezier(.22, 1, .36, 1); }
+.brand-badge-word { font-size: 1.25rem; letter-spacing: 0; transition: font-size .7s cubic-bezier(.22, 1, .36, 1); }
 .app-header.brand-hero .brand-badge-word { font-size: 2rem; }
 .brand-badge-tag { font-size: 10px; transition: font-size .7s cubic-bezier(.22, 1, .36, 1); }
 .app-header.brand-hero .brand-badge-tag { font-size: 12px; }
