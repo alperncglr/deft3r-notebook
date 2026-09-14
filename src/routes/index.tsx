@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 const mascot = "/media/deft3r-notebook-mascot.png";
 const sleepingMascot = "/media/deft3r-mascot-sleeping.png";
+const blinkMascot = "/media/deft3r-mascot-blink.png";
 const writingVideo = "/media/deft3r-open-and-continuous-writing-transparent.webm";
 
 
@@ -76,14 +77,9 @@ function Index() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setVisibleMessages(conversation.length);
-    setState("closing");
+    setState("summary");
   }
 
-  useEffect(() => {
-    if (state !== "closing") return;
-    const timer = window.setTimeout(() => setState("summary"), 620);
-    return () => window.clearTimeout(timer);
-  }, [state]);
 
   function reset() {
     setState("ready");
@@ -174,7 +170,12 @@ function Index() {
           <div className="ready-stage mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center text-center">
             <div className="mascot-enter relative">
               <span className="mascot-shadow" />
-              <img src={mascot} alt="Gülümseyen yeşil defter maskotu" width={1024} height={1024} className="mascot-bob relative w-[min(72vw,330px)] object-contain" />
+              <span className="mascot-bob relative block w-[min(72vw,330px)]">
+                <span className="mascot-look block">
+                  <img src={mascot} alt="Gülümseyen mavi defter maskotu" width={1024} height={1024} className="block w-full object-contain" />
+                  <img src={blinkMascot} alt="" aria-hidden="true" width={1024} height={1024} className="mascot-blink absolute inset-0 w-full object-contain" />
+                </span>
+              </span>
               <span className="mascot-wave" aria-hidden="true">
                 <b>Merhaba!</b>
                 <i />
@@ -216,20 +217,6 @@ function Index() {
           </div>
         )}
 
-        {state === "closing" && (
-          <div className="closing-stage flex min-h-0 flex-1 flex-col" aria-live="polite">
-            <div className="meeting-mascot">
-              <img
-                src={mascot}
-                alt="Defterini kapatan DEFT3R maskotu"
-                width={1024}
-                height={1024}
-                className="meeting-mascot-closing"
-              />
-            </div>
-            <p className="sr-only">Toplantı bitiriliyor, notlar hazırlanıyor.</p>
-          </div>
-        )}
 
         {state === "summary" && (
           <div className="summary-stage mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center">

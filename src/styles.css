@@ -194,6 +194,22 @@
 .mascot-bob { animation: mascot-bob 4.2s ease-in-out .8s infinite; }
 @keyframes mascot-bob { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-7px) rotate(-1.2deg); } }
 .mascot-shadow { position: absolute; inset-inline: 17%; bottom: 7%; height: 8%; border-radius: 50%; background: oklch(0.3 0.03 68 / .13); filter: blur(10px); }
+.mascot-look { position: relative; transform-origin: 50% 88%; animation: mascot-look 9s ease-in-out 1.2s infinite; }
+@keyframes mascot-look {
+  0%, 18% { transform: rotate(0deg) translateX(0); }
+  28%, 40% { transform: rotate(-3.2deg) translateX(-7px); }
+  50%, 56% { transform: rotate(0deg) translateX(0); }
+  66%, 78% { transform: rotate(3.2deg) translateX(7px); }
+  88%, 100% { transform: rotate(0deg) translateX(0); }
+}
+.mascot-blink { opacity: 0; animation: mascot-blink 6.4s steps(1, end) 2s infinite; }
+@keyframes mascot-blink {
+  0%, 5% { opacity: 0; }
+  6%, 8% { opacity: 1; }
+  9%, 46% { opacity: 0; }
+  47%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
 
 /* Greeting bubble — appears with the mascot, then gently bobs. */
 .mascot-wave {
@@ -348,7 +364,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .brand-wordmark, .mascot-enter, .mascot-bob, .mascot-wave, .meeting-stage, .listening-dot, .bubble-in, .meeting-mascot-closed, .meeting-mascot-open, .writing-pen, .summary-stage, .sleepy-mascot-img, .sleepy-z { animation: none; }
+  .brand-wordmark, .mascot-enter, .mascot-bob, .mascot-look, .mascot-blink, .mascot-wave, .meeting-stage, .listening-dot, .bubble-in, .meeting-mascot-closed, .meeting-mascot-open, .writing-pen, .summary-stage, .sleepy-mascot-img, .sleepy-z { animation: none; }
+  .mascot-blink { opacity: 0; }
   .sleepy-mascot-img { transform: none; }
   .sleepy-z { opacity: .8; }
   .app-header, .brand-badge, .brand-badge-mascot, .brand-badge-teb, .brand-badge-word, .brand-badge-tag { transition: none; }

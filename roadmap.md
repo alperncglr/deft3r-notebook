@@ -14,5 +14,6 @@
 - [x] Merhaba baloncugunu yenile ve maskotla birlikte getir.
 - [x] Uyuyan maskot: hafif geriye yaslanmis, kalemine dayanan poz denemesi.
 - [x] Uyuyan maskot mevcut maskot gorselinden turetilmeli (ayni defter + logosuz T3 AI markasi).
-- [ ] Tum guncellemeleri GitHub deposuna (alperncglr/deft3r-notebook) eksiksiz pushla.
-- [ ] Karsilama maskotu: gozlerini kirpistiran ve saga-sola bakan loop animasyonu.
+- [x] Tum guncellemeleri GitHub deposuna (alperncglr/deft3r-notebook) eksiksiz pushla.
+- [x] Karsilama maskotu: gozlerini kirpistiran ve saga-sola bakan loop animasyonu.
+- [x] Toplanti bitince ara kapanis sahnesini kaldir (dogrudan ozet ekrani).
