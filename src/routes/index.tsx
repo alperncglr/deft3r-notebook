@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, CircleStop, Mic, Play, RotateCcw } from "lucide-react";
+import { Check, CircleStop, Download, FileText, Loader2, Mic, Play, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { ChromaKeyVideo } from "@/components/chroma-key-video";
@@ -25,6 +25,7 @@ export const Route = createFileRoute("/")({
 });
 
 type AppState = "ready" | "meeting" | "closing" | "summary";
+type DocStatus = "idle" | "working" | "done";
 
 const conversation = [
   { name: "Ayşe", initials: "AY", tone: "coral", time: "00:08", text: "Günaydın! Önce bu haftanın önceliklerini netleştirelim." },
@@ -39,6 +40,8 @@ function Index() {
   const [seconds, setSeconds] = useState(0);
   const [visibleMessages, setVisibleMessages] = useState(0);
   const [notice, setNotice] = useState("");
+  const [summaryStatus, setSummaryStatus] = useState<DocStatus>("idle");
+  const [transcriptStatus, setTranscriptStatus] = useState<DocStatus>("idle");
   const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
@@ -86,9 +89,61 @@ function Index() {
     setSeconds(0);
     setVisibleMessages(0);
     setNotice("");
+    setSummaryStatus("idle");
+    setTranscriptStatus("idle");
   }
 
   const time = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  const meetingName = title.trim() || "İsimsiz toplantı";
+
+  function download(fileName: string, content: string) {
+    const url = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function slug() {
+    return meetingName.toLocaleLowerCase("tr").replace(/[^a-z0-9ğüşiöç]+/gi, "-").replace(/^-|-$/g, "") || "toplanti";
+  }
+
+  function prepareSummary() {
+    if (summaryStatus === "working") return;
+    setSummaryStatus("working");
+    window.setTimeout(() => {
+      download(
+        `${slug()}-ozet.txt`,
+        [
+          `${meetingName} — Toplantı Özeti`,
+          `Süre: ${time}`,
+          "",
+          "Özet:",
+          "Ekip, bu haftanın ana odağını kullanıcı testleri olarak belirledi. Test sonuçları cuma sabahı paylaşılacak.",
+          "",
+          "Yapılacaklar:",
+          "- Kullanıcı testlerini tamamla",
+          "- Bulguları ekiple paylaş",
+        ].join("\n"),
+      );
+      setSummaryStatus("done");
+    }, 2200);
+  }
+
+  function prepareTranscript() {
+    if (transcriptStatus === "working") return;
+    setTranscriptStatus("working");
+    window.setTimeout(() => {
+      download(
+        `${slug()}-transkript.txt`,
+        [`${meetingName} — Toplantı Transkripti`, `Süre: ${time}`, "", ...conversation.map((m) => `[${m.time}] ${m.name}: ${m.text}`)].join("\n"),
+      );
+      setTranscriptStatus("done");
+    }, 2200);
+  }
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
@@ -175,12 +230,39 @@ function Index() {
         {state === "summary" && (
           <div className="summary-stage mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center">
             <img src={mascot} alt="DEFT3R defter maskotu" width={1024} height={1024} className="summary-mascot w-36 object-contain" />
-            <p className="mt-2 text-xs font-semibold uppercase text-muted-foreground">{title.trim() || "İsimsiz toplantı"} · {time}</p>
-            <h1 className="mt-2 text-center font-display text-3xl font-bold">Notların hazır!</h1>
-            <div className="mt-6 grid w-full gap-4 sm:grid-cols-2">
-              <section className="summary-sheet summary-card-in"><h2>Toplantı özeti</h2><p>Ekip, bu haftanın ana odağını kullanıcı testleri olarak belirledi. Test sonuçları cuma sabahı paylaşılacak.</p></section>
-              <section className="summary-sheet summary-card-in summary-card-in-2"><h2>Yapılacaklar</h2><ul><li><Check /> Kullanıcı testlerini tamamla</li><li><Check /> Bulguları ekiple paylaş</li></ul></section>
+            <p className="mt-2 text-xs font-semibold uppercase text-muted-foreground">{meetingName} · {time}</p>
+            <h1 className="mt-2 text-center font-display text-3xl font-bold">Toplantı tamamlandı</h1>
+            <p className="mt-2 text-center text-sm text-muted-foreground">Ne hazırlamamı istersin? Hazır olunca dosya otomatik iner.</p>
+
+            <div className="mt-6 grid w-full gap-3 sm:grid-cols-2" aria-live="polite">
+              <Button
+                className="doc-action w-full"
+                onClick={prepareSummary}
+                disabled={summaryStatus === "working"}
+              >
+                {summaryStatus === "working" ? (<><Loader2 className="size-4 animate-spin" /> Toplantı özeti alınıyor…</>)
+                  : summaryStatus === "done" ? (<><Check className="size-4" /> Özet indirildi · tekrar al</>)
+                  : (<><FileText className="size-4" /> Toplantı özeti al</>)}
+              </Button>
+              <Button
+                variant="quiet"
+                className="doc-action w-full"
+                onClick={prepareTranscript}
+                disabled={transcriptStatus === "working"}
+              >
+                {transcriptStatus === "working" ? (<><Loader2 className="size-4 animate-spin" /> Transkript alınıyor…</>)
+                  : transcriptStatus === "done" ? (<><Check className="size-4" /> Transkript indirildi · tekrar al</>)
+                  : (<><Download className="size-4" /> Toplantı transkripti al</>)}
+              </Button>
             </div>
+
+            {summaryStatus === "done" && (
+              <div className="mt-6 grid w-full gap-4 sm:grid-cols-2">
+                <section className="summary-sheet summary-card-in"><h2>Toplantı özeti</h2><p>Ekip, bu haftanın ana odağını kullanıcı testleri olarak belirledi. Test sonuçları cuma sabahı paylaşılacak.</p></section>
+                <section className="summary-sheet summary-card-in summary-card-in-2"><h2>Yapılacaklar</h2><ul><li><Check /> Kullanıcı testlerini tamamla</li><li><Check /> Bulguları ekiple paylaş</li></ul></section>
+              </div>
+            )}
+
             <Button variant="quiet" className="mt-5" onClick={reset}><RotateCcw className="size-4" /> Yeni toplantı</Button>
           </div>
         )}
