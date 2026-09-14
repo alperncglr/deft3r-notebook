@@ -249,23 +249,26 @@
   gap: .75rem;
   transition: left .7s cubic-bezier(.22, 1, .36, 1);
 }
-.app-header.brand-hero .brand-badge { left: calc(50% - 7.75rem); justify-content: center; }
-.brand-badge-mascot { width: 2.75rem; height: 2.75rem; flex: none; transition: width .7s cubic-bezier(.22, 1, .36, 1), height .7s cubic-bezier(.22, 1, .36, 1); }
-.app-header.brand-hero .brand-badge-mascot { width: 4.25rem; height: 4.25rem; }
+.app-header.brand-hero .brand-badge { left: calc(50% - 8.5rem); width: 17rem; justify-content: center; }
+.brand-badge-mascot { order: 1; width: 2.75rem; height: 2.75rem; flex: none; transition: width .7s cubic-bezier(.22, 1, .36, 1), height .7s cubic-bezier(.22, 1, .36, 1), opacity .5s, margin .7s cubic-bezier(.22, 1, .36, 1); }
+.app-header.brand-hero .brand-badge-mascot { order: 3; width: 0; height: 2.75rem; opacity: 0; margin-right: -.75rem; }
+.brand-badge-teb { order: 3; height: 2.1rem; flex: none; transition: height .7s cubic-bezier(.22, 1, .36, 1); }
+.app-header.brand-hero .brand-badge-teb { order: 1; height: 3.75rem; }
+.brand-badge-text { order: 2; }
 .brand-badge-word { font-size: 1.25rem; transition: font-size .7s cubic-bezier(.22, 1, .36, 1); }
 .app-header.brand-hero .brand-badge-word { font-size: 2rem; }
 .brand-badge-tag { font-size: 10px; transition: font-size .7s cubic-bezier(.22, 1, .36, 1); }
 .app-header.brand-hero .brand-badge-tag { font-size: 12px; }
 @media (min-width: 640px) {
   .brand-badge { left: 2rem; }
-  .app-header.brand-hero .brand-badge { left: calc(50% - 7.75rem); }
+  .app-header.brand-hero .brand-badge { left: calc(50% - 8.5rem); }
   .app-header.brand-hero .brand-badge-word { font-size: 2.5rem; }
-  .app-header.brand-hero .brand-badge-mascot { width: 5rem; height: 5rem; }
+  .app-header.brand-hero .brand-badge-teb { height: 4.5rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .brand-wordmark, .mascot-enter, .mascot-wave, .meeting-stage, .listening-dot, .bubble-in, .meeting-mascot-closed, .meeting-mascot-open, .writing-pen, .summary-stage { animation: none; }
-  .app-header, .brand-badge, .brand-badge-mascot, .brand-badge-word, .brand-badge-tag { transition: none; }
+  .app-header, .brand-badge, .brand-badge-mascot, .brand-badge-teb, .brand-badge-word, .brand-badge-tag { transition: none; }
   .meeting-mascot-closed { display: none; }
   .meeting-mascot-open { transform: translate(-50%, 58%); opacity: 1; }
 }
