@@ -4,5 +4,8 @@
 - [x] Eski renkli maskot dosyalarını özgün adlarıyla ayrı klasöre ekle.
 - [x] Yerel çalıştırmayı doğrula.
 - [x] `yeni-proje` adlı özel GitHub deposunu oluştur ve kaynakları yükle.
-- [ ] Tüm dosyaları (medya dahil) yeni GitHub reposuna eksiksiz yükle — devam ediyor.
-- [ ] Saydamlaştırılmamış (normal arka planlı) video sürümünün de depoda olduğundan emin ol.
+- [x] Tüm dosyaları (medya dahil) `deft3r-notebook` deposuna eksiksiz yükle.
+- [x] Saydamsız video (`deft3r-open-and-continuous-writing.mp4`) depoda.
+- [x] Logoyu PNG olarak rozetsiz maskot kapağına işledim; GitHub reposu güncellendi.
+- [x] DEFT3R yazısını modern geometrik tipe geçir ve 3 rakamının taban hizasını düzelt.
+- [x] İkinci yazı tipi seçeneğini kullanırken mevcut altın dış hat görünümünü koru.
