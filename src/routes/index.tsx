@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Check, CircleStop, Download, FileText, Loader2, Mic, Play, RotateCcw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { ChromaKeyVideo } from "@/components/chroma-key-video";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 const mascot = "/media/deft3r-notebook-mascot.png";
 const sleepingMascot = "/media/deft3r-mascot-sleeping.png";
 const blinkMascot = "/media/deft3r-mascot-blink.png";
-const writingVideo = "/media/deft3r-open-and-continuous-writing-transparent.webm";
+const writingVideo = "/media/deft3r-open-and-continuous-writing.mp4";
 
 
 export const Route = createFileRoute("/")({
@@ -44,7 +44,19 @@ function Index() {
   const [notice, setNotice] = useState("");
   const [summaryStatus, setSummaryStatus] = useState<DocStatus>("idle");
   const [transcriptStatus, setTranscriptStatus] = useState<DocStatus>("idle");
+  const [travelStartTop, setTravelStartTop] = useState<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const readyMascotRef = useRef<HTMLSpanElement>(null);
+
+  // Toplantı videosunu, kullanıcı "Toplantıyı Başlat"a basmadan önce arka
+  // planda önceden yükle — aksi halde ilk tıklamada video ağdan inene kadar
+  // kısa bir boşluk oluşuyor.
+  useEffect(() => {
+    const preloadVideo = document.createElement("video");
+    preloadVideo.preload = "auto";
+    preloadVideo.src = writingVideo;
+    preloadVideo.load();
+  }, []);
 
   useEffect(() => {
     if (state !== "meeting") return;
@@ -63,6 +75,8 @@ function Index() {
 
   async function startMeeting() {
     setNotice("");
+    const rect = readyMascotRef.current?.getBoundingClientRect();
+    setTravelStartTop(rect ? rect.top : null);
     try {
       streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
@@ -143,7 +157,7 @@ function Index() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
+    <main className="relative h-screen overflow-hidden bg-background text-foreground">
       <div aria-hidden="true" className="paper-grid absolute inset-0" />
       <header className={cn("app-header relative z-20 mx-auto flex w-full max-w-6xl items-center justify-end px-5 py-5 sm:px-8", state !== "meeting" && "brand-hero")}>
         <button className="brand-badge" onClick={reset} aria-label="DEFT3R başlangıç ekranı">
@@ -170,7 +184,7 @@ function Index() {
           <div className="ready-stage mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center text-center">
             <div className="mascot-enter relative">
               <span className="mascot-shadow" />
-              <span className="mascot-bob relative block w-[min(72vw,330px)]">
+              <span ref={readyMascotRef} className="mascot-bob relative block w-[min(72vw,330px)]">
                 <span className="mascot-look block">
                   <img src={mascot} alt="Gülümseyen mavi defter maskotu" width={1024} height={1024} className="block w-full object-contain" />
                   <img src={blinkMascot} alt="" aria-hidden="true" width={1024} height={1024} className="mascot-blink absolute inset-0 w-full object-contain" />
@@ -198,7 +212,7 @@ function Index() {
               <p className="text-xs font-semibold uppercase text-muted-foreground">{title.trim() || "İsimsiz toplantı"}</p>
               <h1 className="mt-1 font-display text-2xl font-bold sm:text-3xl">Konuşmalar deftere düşüyor</h1>
             </div>
-            <div className="transcript-scroll mx-auto flex w-full max-w-3xl flex-1 flex-col justify-end overflow-y-auto px-1 pb-5">
+            <div className="transcript-scroll mx-auto flex w-full max-w-3xl flex-1 flex-col justify-end overflow-y-hidden px-1 pb-5">
               <div className="space-y-3">
                 {conversation.slice(0, visibleMessages).map((message, index) => (
                   <article key={`${message.name}-${message.time}`} className={cn("speech-row bubble-in", index % 2 === 1 && "speech-row-alt")}>
@@ -211,7 +225,7 @@ function Index() {
                 ))}
               </div>
             </div>
-            <MeetingMascot />
+            <MeetingMascot startTop={travelStartTop} />
             <div className="meeting-writing-status flex items-center justify-center gap-2 text-xs font-semibold text-muted-foreground"><Mic className="size-3.5" /> DEFT3R yazıyor…</div>
             {notice && <p className="mt-2 text-center text-xs font-medium text-destructive">{notice}</p>}
           </div>
@@ -264,10 +278,15 @@ function Index() {
   );
 }
 
-function MeetingMascot() {
+function MeetingMascot({ startTop }: { startTop: number | null }) {
   return (
     <div className="meeting-mascot" role="img" aria-label="Açılıp toplantı notlarını yazan DEFT3R maskotu">
-      <ChromaKeyVideo src={writingVideo} poster={mascot} className="meeting-mascot-video" />
+      <ChromaKeyVideo
+        src={writingVideo}
+        poster={mascot}
+        className="meeting-mascot-video"
+        style={startTop !== null ? ({ "--travel-start-top": `${startTop}px` } as CSSProperties) : undefined}
+      />
     </div>
   );
 }

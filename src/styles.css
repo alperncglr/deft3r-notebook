@@ -291,7 +291,7 @@
 }
 .meeting-stage { animation: none; }
 .listening-dot { width: .6rem; height: .6rem; border-radius: 50%; background: oklch(0.67 0.16 145); animation: listening 1.6s ease-in-out infinite; }
-.transcript-scroll { min-height: 260px; max-height: calc(100vh - 250px); scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.transcript-scroll { min-height: 260px; max-height: calc(100vh - 340px); padding-bottom: 1rem; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 .speech-row { display: flex; align-items: flex-start; gap: .75rem; }
 .speech-row-alt { padding-left: clamp(1rem, 8vw, 5rem); }
 .avatar { display: grid; place-items: center; flex: none; width: 2.25rem; height: 2.25rem; border-radius: 50%; font-size: .7rem; font-weight: 800; border: 2px solid var(--card); }
@@ -323,7 +323,7 @@
 .summary-sheet li svg { width: 1rem; color: oklch(0.51 0.13 150); }
 
 @media (max-width: 640px) {
-  .transcript-scroll { max-height: calc(100vh - 225px); padding-bottom: 1.5rem; }
+  .transcript-scroll { max-height: calc(100vh - 300px); padding-bottom: 1.5rem; }
   .meeting-mascot { height: auto; }
   .meeting-mascot-open { height: 110px; }
   .meeting-mascot-closed { width: 190px; }
@@ -376,11 +376,11 @@
 /* Generated mascot video shown during an active meeting. */
 @keyframes meeting-mascot-travel {
   0% {
-    top: calc(50% - 259px);
+    top: var(--travel-start-top, calc(50% - 259px));
     transform: translateX(-50%);
   }
   14% {
-    top: calc(50% - 259px);
+    top: var(--travel-start-top, calc(50% - 259px));
     transform: translateX(-50%);
   }
   100% {
@@ -398,6 +398,14 @@
   transform: translateX(-50%);
   filter: drop-shadow(0 15px 12px var(--paper-shadow));
   animation: meeting-mascot-travel 2.1s cubic-bezier(.3,.72,.22,1) both;
+}
+
+.meeting-mascot-source-video {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .meeting-mascot-poster,
