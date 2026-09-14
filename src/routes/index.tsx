@@ -96,11 +96,12 @@ function Index() {
       <header className={cn("app-header relative z-20 mx-auto flex w-full max-w-6xl items-center justify-end px-5 py-5 sm:px-8", state !== "meeting" && "brand-hero")}>
         <button className="brand-badge" onClick={reset} aria-label="DEFT3R başlangıç ekranı">
           <img src={mascot} alt="" width={1024} height={1024} className="brand-badge-mascot object-contain" />
-          <div className="text-left leading-none">
+          <img src="/media/teb-ai-mark.png" alt="TEB AI logosu" className="brand-badge-teb object-contain" />
+          <div className="brand-badge-text text-left leading-none">
             <p className="brand-wordmark brand-badge-word" aria-label="DEFT3R">
               DEFT3R
             </p>
-            <p className="brand-badge-tag mt-1 font-semibold uppercase text-muted-foreground">Toplantı defteri</p>
+            <p className="brand-badge-tag mt-1 font-semibold uppercase text-muted-foreground">Toplantı asistanı</p>
           </div>
         </button>
         {state === "meeting" && (
