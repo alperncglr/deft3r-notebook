@@ -87,10 +87,9 @@ function Index() {
       const startX = startLeft - target.left;
       const startY = startTop - target.top;
 
-      // Gövdenin (defterin) alt kenarı görselin ~%77'sinde bitiyor; logonun üst
-      // kenarını oraya koyunca maskot gerçekten logonun üstüne oturuyor,
-      // bacakları da logonun önünde sarkıyor.
-      const logoTop = startTop + startWidth * 0.772;
+      // Oturma çizgisi gövdenin düz alt kenarıdır (760/1024); aşağıdaki alfa
+      // pikselleri bacaklara aittir ve temas hesabına dahil edilmez.
+      const logoTop = startTop + startWidth * (760 / 1024) - 1;
       const sitDx = target.left - startLeft;
       const sitDy = target.top - startTop;
 
@@ -376,22 +375,22 @@ function Index() {
         <div className={cn("opening-screen", introPlacement && "is-ready")} aria-hidden="true">
           <div className="opening-paper" />
           <img src="/media/teb-ai-mark.png" alt="" className="opening-logo" style={introPlacement ?? undefined} />
-          <div className="opening-sitting-mascot" style={introPlacement ?? undefined}>
-            <img src={sittingMascotBody} alt="" className="opening-sitting-body" />
-            <img src={sittingLegLeftLower} alt="" className="opening-sitting-shin opening-sitting-shin-left" />
-            <img src={sittingLegRightLower} alt="" className="opening-sitting-shin opening-sitting-shin-right" />
-            <img src={sittingLegLeftUpper} alt="" className="opening-sitting-thigh" />
-            <img src={sittingLegRightUpper} alt="" className="opening-sitting-thigh" />
-          </div>
-          <img
-            src={mascot}
-            alt=""
-            className="opening-mascot"
+          <div
+            className="opening-jumping-mascot"
             style={introPlacement ?? undefined}
             onAnimationEnd={(event) => {
               if (event.animationName === "opening-sit-jump") setIntroVisible(false);
             }}
-          />
+          >
+            <div className="opening-sitting-pose">
+              <img src={sittingMascotBody} alt="" className="opening-sitting-body" />
+              <img src={sittingLegLeftLower} alt="" className="opening-sitting-shin opening-sitting-shin-left" />
+              <img src={sittingLegRightLower} alt="" className="opening-sitting-shin opening-sitting-shin-right" />
+              <img src={sittingLegLeftUpper} alt="" className="opening-sitting-thigh" />
+              <img src={sittingLegRightUpper} alt="" className="opening-sitting-thigh" />
+            </div>
+            <img src={mascot} alt="" className="opening-landing-pose" />
+          </div>
           <span className="opening-landing-shadow" style={introPlacement ?? undefined} />
         </div>
       )}
@@ -406,7 +405,9 @@ function MeetingMascot({ startTop, isPaused }: { startTop: number | null; isPaus
         src={writingVideo}
         poster={mascot}
         className="meeting-mascot-video"
-        style={startTop !== null ? ({ "--travel-start-top": `${startTop}px` } as CSSProperties) : undefined}
+        {...(startTop !== null
+          ? { style: { "--travel-start-top": `${startTop}px` } as CSSProperties }
+          : {})}
         paused={isPaused}
       />
     </div>
