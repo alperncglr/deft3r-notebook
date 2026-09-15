@@ -180,20 +180,21 @@
 }
 
 @keyframes opening-sit-jump {
-  0%, 62% { transform: translate(0, 0) scale(1); animation-timing-function: cubic-bezier(.24,.58,.46,.78); }
-  66% { transform: translate(0, -1.6vh) scale(1); animation-timing-function: cubic-bezier(.2,.62,.36,1); }
-  79% { transform: translate(calc(var(--intro-sit-dx) * .45), calc(var(--intro-sit-apex-y) * 1.05)) scale(calc((1 + var(--intro-sit-scale)) / 2)); animation-timing-function: cubic-bezier(.42,.08,.7,1); }
-  96%, 100% { transform: translate(var(--intro-sit-dx), var(--intro-sit-dy)) scale(var(--intro-sit-scale)); }
+  0%, 62% { transform: translate(var(--intro-start-x), var(--intro-start-y)) scale(var(--intro-start-scale)); }
+  96%, 100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes opening-jump-arc {
+  0%, 62% { transform: translateY(0); animation-timing-function: cubic-bezier(.22,.61,.36,1); }
+  78% { transform: translateY(var(--intro-sit-arc-y)); animation-timing-function: cubic-bezier(.55,0,.85,.36); }
+  96%, 100% { transform: translateY(0); }
 }
 @keyframes opening-sitting-pose-fold {
-  0%, 66% { opacity: 1; transform: scale(1) rotate(0deg); }
-  73% { opacity: .72; transform: scale(.94, .88) rotate(-1deg); }
-  80%, 100% { opacity: 0; transform: scale(.9, .82) rotate(0deg); }
+  0%, 72% { opacity: 1; }
+  77%, 100% { opacity: 0; }
 }
 @keyframes opening-landing-pose-unfold {
-  0%, 66% { opacity: 0; transform: scale(.9, .82) rotate(0deg); }
-  73% { opacity: .28; transform: scale(.94, .88) rotate(1deg); }
-  80%, 100% { opacity: 1; transform: scale(1) rotate(0deg); }
+  0%, 72% { opacity: 0; }
+  77%, 100% { opacity: 1; }
 }
 
 @keyframes opening-shin-straighten-left {
@@ -216,9 +217,8 @@
   50% { transform: rotate(12deg); }
 }
 @keyframes opening-logo-exit {
-  0%, 62% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); animation-timing-function: cubic-bezier(.24,.58,.46,.78); }
-  80% { opacity: 1; transform: translateX(-50%) translateY(-14vh) scale(.98); animation-timing-function: cubic-bezier(.58,0,.84,1); }
-  100% { opacity: 0; transform: translateX(-50%) translateY(-62vh) scale(.9); }
+  0%, 78% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); animation-timing-function: cubic-bezier(.2,.45,.35,1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-30vh) scale(.96); }
 }
 
 @keyframes opening-shadow-land {
@@ -241,28 +241,53 @@
   background-image: linear-gradient(oklch(0.56 0.04 76 / .07) 1px, transparent 1px), linear-gradient(90deg, oklch(0.56 0.04 76 / .04) 1px, transparent 1px);
   background-size: 28px 28px;
 }
-.opening-logo {
+.opening-brand-lockup {
   position: fixed;
   left: 50%;
   top: var(--intro-logo-top);
   width: min(58vw, 260px);
-  height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   opacity: 0;
   transform: translateX(-50%);
   filter: drop-shadow(0 12px 10px var(--paper-shadow));
+  will-change: transform, opacity;
+}
+.opening-logo { width: 100%; height: auto; object-fit: contain; }
+.opening-brand-name {
+  margin-top: .45rem;
+  font-size: clamp(1.55rem, 5vw, 2.15rem);
+  text-align: center;
+}
+.opening-brand-powered {
+  margin-top: .3rem;
+  color: var(--muted-foreground);
+  font-size: clamp(.62rem, 1.8vw, .75rem);
+  font-weight: 700;
+  letter-spacing: .12em;
+  line-height: 1;
+  text-align: center;
 }
 .opening-jumping-mascot {
   position: fixed;
   z-index: 2;
-  left: var(--intro-sitting-left);
-  top: var(--intro-sitting-top);
-  width: var(--intro-sitting-size);
-  aspect-ratio: 1;
-  transform-origin: top left;
+  left: var(--intro-target-left);
+  top: var(--intro-target-top);
+  width: var(--intro-target-width);
+  height: var(--intro-target-height);
+  /* Standing mascot's right-foot contact pixel: (650, 938) on a 1024px canvas. */
+  transform-origin: 63.4766% 91.6016%;
   filter: drop-shadow(0 10px 8px var(--paper-shadow));
+  will-change: transform;
+}
+.opening-jump-arc {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
 }
 .opening-sitting-pose,
-.opening-landing-pose { position: absolute; inset: 0; width: 100%; height: 100%; transform-origin: 50% 58%; }
+.opening-landing-pose { position: absolute; inset: 0; width: 100%; height: 100%; transform-origin: 50% 58%; will-change: opacity; }
 .opening-sitting-pose img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .opening-sitting-body { z-index: 1; }
 .opening-sitting-shin { z-index: 2; }
@@ -287,13 +312,14 @@
   background: var(--paper-shadow);
   filter: blur(8px);
 }
-.opening-screen.is-ready .opening-logo { opacity: 1; animation: opening-logo-exit 5.2s ease both; }
+.opening-screen.is-ready .opening-brand-lockup { opacity: 1; animation: opening-logo-exit 5.2s linear both; }
 .opening-screen.is-ready .opening-jumping-mascot { animation: opening-sit-jump 5.2s linear both; }
+.opening-screen.is-ready .opening-jump-arc { animation: opening-jump-arc 5.2s linear both; }
 .opening-screen.is-ready .opening-sitting-pose { animation: opening-sitting-pose-fold 5.2s linear both; }
 .opening-screen.is-ready .opening-landing-pose { animation: opening-landing-pose-unfold 5.2s linear both; }
 .opening-screen.is-ready .opening-landing-shadow { animation: opening-shadow-land 5.2s ease both; }
 .intro-active .ready-stage > :not(.mascot-enter) { visibility: hidden; }
-.intro-active .ready-stage .mascot-enter { visibility: hidden; }
+.intro-active .ready-stage .mascot-enter { visibility: hidden; animation: none; }
 .intro-active .mascot-bob,
 .intro-active .mascot-look { animation: none; }
 .mascot-enter.intro-played { animation: none; }
@@ -603,8 +629,9 @@
   .app-header, .brand-badge, .brand-badge-mascot, .brand-badge-teb, .brand-badge-word, .brand-badge-tag { transition: none; }
   .meeting-mascot-closed { display: none; }
   .meeting-mascot-open { transform: translate(-50%, 58%); opacity: 1; }
-  .opening-screen.is-ready .opening-logo { animation-duration: .01ms; }
+  .opening-screen.is-ready .opening-brand-lockup { animation-duration: .01ms; }
   .opening-screen.is-ready .opening-jumping-mascot,
+  .opening-screen.is-ready .opening-jump-arc,
   .opening-screen.is-ready .opening-sitting-pose,
   .opening-screen.is-ready .opening-landing-pose,
   .opening-sitting-shin { animation-duration: .01ms; }

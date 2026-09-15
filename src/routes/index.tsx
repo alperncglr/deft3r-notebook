@@ -52,6 +52,7 @@ type IntroPlacement = CSSProperties & {
   "--intro-sit-scale": string;
   "--intro-sit-apex-x": string;
   "--intro-sit-apex-y": string;
+  "--intro-sit-arc-y": string;
 };
 
 const conversation = [
@@ -74,7 +75,7 @@ function Index() {
   const [introVisible, setIntroVisible] = useState(true);
   const [introPlacement, setIntroPlacement] = useState<IntroPlacement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const readyMascotRef = useRef<HTMLSpanElement>(null);
+  const readyMascotRef = useRef<HTMLImageElement>(null);
 
   useLayoutEffect(() => {
     const placeIntro = () => {
@@ -84,8 +85,11 @@ function Index() {
       const startWidth = Math.min(window.innerWidth * 0.34, 170);
       const startLeft = (window.innerWidth - startWidth) / 2;
       const startTop = Math.max(18, window.innerHeight * 0.055);
-      const startX = startLeft - target.left;
-      const startY = startTop - target.top;
+      const startScale = startWidth / target.width;
+      const footX = target.width * (650 / 1024);
+      const footY = target.height * (938 / 1024);
+      const startX = startLeft - target.left - footX * (1 - startScale);
+      const startY = startTop - target.top - footY * (1 - startScale);
 
       // Oturma çizgisi gövdenin düz alt kenarıdır (760/1024); aşağıdaki alfa
       // pikselleri bacaklara aittir ve temas hesabına dahil edilmez.
@@ -93,19 +97,22 @@ function Index() {
       const sitDx = target.left - startLeft;
       const sitDy = target.top - startTop;
 
+      const sitApexY = -Math.max(24, Math.min(90, startTop * 0.55));
+
       setIntroPlacement({
         "--intro-sit-dx": `${sitDx}px`,
         "--intro-sit-dy": `${sitDy}px`,
         "--intro-sit-scale": `${target.width / startWidth}`,
         "--intro-sit-apex-x": `${sitDx * 0.5}px`,
-        "--intro-sit-apex-y": `${-Math.max(24, Math.min(90, startTop * 0.55))}px`,
+        "--intro-sit-apex-y": `${sitApexY}px`,
+        "--intro-sit-arc-y": `${sitApexY - sitDy * (16 / 34)}px`,
         "--intro-target-left": `${target.left}px`,
         "--intro-target-top": `${target.top}px`,
         "--intro-target-width": `${target.width}px`,
         "--intro-target-height": `${target.height}px`,
         "--intro-start-x": `${startX}px`,
         "--intro-start-y": `${startY}px`,
-        "--intro-start-scale": `${startWidth / target.width}`,
+        "--intro-start-scale": `${startScale}`,
         "--intro-apex-x": `${startX * 0.52}px`,
         "--intro-apex-y": `${Math.min(startY, 0) - Math.min(120, window.innerHeight * 0.13)}px`,
         "--intro-logo-top": `${logoTop}px`,
@@ -281,9 +288,9 @@ function Index() {
           <div className="ready-stage relative mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center text-center">
             <div className={cn("mascot-enter relative", !introVisible && "intro-played")}>
               <span className="mascot-shadow" />
-              <span ref={readyMascotRef} className="mascot-bob relative block w-[min(72vw,330px)]">
+              <span className="mascot-bob relative block w-[min(72vw,330px)]">
                 <span className="mascot-look block">
-                  <img src={mascot} alt="Gülümseyen mavi defter maskotu" width={1024} height={1024} className="block w-full object-contain" />
+                  <img ref={readyMascotRef} src={mascot} alt="Gülümseyen mavi defter maskotu" width={1024} height={1024} className="block w-full object-contain" />
                   <img src={blinkMascot} alt="" aria-hidden="true" width={1024} height={1024} className="mascot-blink absolute inset-0 w-full object-contain" />
                 </span>
               </span>
@@ -374,7 +381,11 @@ function Index() {
       {introVisible && (
         <div className={cn("opening-screen", introPlacement && "is-ready")} aria-hidden="true">
           <div className="opening-paper" />
-          <img src="/media/teb-ai-mark.png" alt="" className="opening-logo" style={introPlacement ?? undefined} />
+          <div className="opening-brand-lockup" style={introPlacement ?? undefined}>
+            <img src="/media/teb-ai-mark.png" alt="" className="opening-logo" />
+            <p className="brand-wordmark opening-brand-name">DEFT3R</p>
+            <p className="opening-brand-powered">powered by T3AI</p>
+          </div>
           <div
             className="opening-jumping-mascot"
             style={introPlacement ?? undefined}
@@ -382,14 +393,16 @@ function Index() {
               if (event.animationName === "opening-sit-jump") setIntroVisible(false);
             }}
           >
-            <div className="opening-sitting-pose">
-              <img src={sittingMascotBody} alt="" className="opening-sitting-body" />
-              <img src={sittingLegLeftLower} alt="" className="opening-sitting-shin opening-sitting-shin-left" />
-              <img src={sittingLegRightLower} alt="" className="opening-sitting-shin opening-sitting-shin-right" />
-              <img src={sittingLegLeftUpper} alt="" className="opening-sitting-thigh" />
-              <img src={sittingLegRightUpper} alt="" className="opening-sitting-thigh" />
+            <div className="opening-jump-arc">
+              <div className="opening-sitting-pose">
+                <img src={sittingMascotBody} alt="" className="opening-sitting-body" />
+                <img src={sittingLegLeftLower} alt="" className="opening-sitting-shin opening-sitting-shin-left" />
+                <img src={sittingLegRightLower} alt="" className="opening-sitting-shin opening-sitting-shin-right" />
+                <img src={sittingLegLeftUpper} alt="" className="opening-sitting-thigh" />
+                <img src={sittingLegRightUpper} alt="" className="opening-sitting-thigh" />
+              </div>
+              <img src={mascot} alt="" className="opening-landing-pose" />
             </div>
-            <img src={mascot} alt="" className="opening-landing-pose" />
           </div>
           <span className="opening-landing-shadow" style={introPlacement ?? undefined} />
         </div>
