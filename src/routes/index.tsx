@@ -162,6 +162,7 @@ function Index() {
 
   return (
     <main className="relative h-screen overflow-hidden bg-background text-foreground">
+      <div aria-hidden="true" className="paper-surface absolute inset-0" />
       <div aria-hidden="true" className="paper-grid absolute inset-0" />
       <header className={cn("app-header relative z-20 mx-auto flex w-full max-w-6xl items-center justify-end px-5 py-5 sm:px-8", state !== "meeting" && "brand-hero")}>
         <button className="brand-badge" onClick={reset} aria-label="DEFT3R başlangıç ekranı">
@@ -190,7 +191,7 @@ function Index() {
 
       <section className="relative z-10 mx-auto flex min-h-[calc(100vh-84px)] max-w-5xl flex-col px-5 pb-8 sm:px-8">
         {state === "ready" && (
-          <div className="ready-stage mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center text-center">
+          <div className="ready-stage relative mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center text-center">
             <div className="mascot-enter relative">
               <span className="mascot-shadow" />
               <span ref={readyMascotRef} className="mascot-bob relative block w-[min(72vw,330px)]">
@@ -200,15 +201,18 @@ function Index() {
                 </span>
               </span>
               <span className="mascot-wave" aria-hidden="true">
-                <b>Merhaba!</b>
-                <i />
+                <span className="mascot-wave-tilt">
+                  <TypewriterGreeting />
+                  <i />
+                </span>
               </span>
             </div>
             <h1 className="mt-1 font-display text-3xl font-bold sm:text-4xl">Bugünkü toplantı ne hakkında?</h1>
-            <div className="mt-6 w-full rounded-2xl bg-card p-2 shadow-paper ring-1 ring-border">
+            <div className="paper-weight" aria-hidden="true" />
+            <div className="notebook-inset mt-6 w-full">
               <label htmlFor="meeting-title" className="sr-only">Toplantı adı</label>
-              <textarea id="meeting-title" value={title} onChange={(event) => setTitle(event.target.value)} rows={2} placeholder="Toplantı adı" className="w-full resize-none rounded-xl bg-secondary px-4 py-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
-              <Button className="mt-2 w-full" onClick={startMeeting}><Play className="size-4 fill-current" /> Toplantıyı Başlat</Button>
+              <textarea id="meeting-title" value={title} onChange={(event) => setTitle(event.target.value)} rows={2} placeholder="Toplantı adı" className="notebook-inset-field w-full resize-none px-4 py-3 text-sm outline-none placeholder:text-muted-foreground" />
+              <Button className="notebook-inset-action mt-2 w-full" onClick={startMeeting}><Play className="size-4 fill-current" /> Toplantıyı Başlat</Button>
             </div>
             {notice && <p className="mt-3 text-sm font-medium text-destructive">{notice}</p>}
           </div>
@@ -295,5 +299,48 @@ function MeetingMascot({ startTop, isPaused }: { startTop: number | null; isPaus
         paused={isPaused}
       />
     </div>
+  );
+}
+
+const GREETINGS = ["Merhaba", "Hello", "Hola", "Bonjour", "Ciao", "Hallo", "Olá", "こんにちは", "你好", "Привет"];
+
+type TypewriterPhase = "typing" | "holding" | "deleting";
+
+function TypewriterGreeting() {
+  const [text, setText] = useState("");
+  const [wordIndex, setWordIndex] = useState(0);
+  const [phase, setPhase] = useState<TypewriterPhase>("typing");
+
+  useEffect(() => {
+    const word = GREETINGS[wordIndex % GREETINGS.length]!;
+    let timer: number;
+
+    if (phase === "typing") {
+      if (text.length < word.length) {
+        timer = window.setTimeout(() => setText(word.slice(0, text.length + 1)), 95);
+      } else {
+        timer = window.setTimeout(() => setPhase("holding"), 1200);
+      }
+    } else if (phase === "holding") {
+      timer = window.setTimeout(() => setPhase("deleting"), 700);
+    } else {
+      if (text.length > 0) {
+        timer = window.setTimeout(() => setText(word.slice(0, text.length - 1)), 40);
+      } else {
+        timer = window.setTimeout(() => {
+          setWordIndex((index) => (index + 1) % GREETINGS.length);
+          setPhase("typing");
+        }, 250);
+      }
+    }
+
+    return () => window.clearTimeout(timer);
+  }, [text, phase, wordIndex]);
+
+  return (
+    <b>
+      {text}
+      <span className="typewriter-cursor" aria-hidden="true" />
+    </b>
   );
 }

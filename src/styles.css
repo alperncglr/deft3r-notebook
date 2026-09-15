@@ -65,6 +65,7 @@
   --font-brand: "Montserrat", "DM Sans", sans-serif;
   --shadow-button: 0 7px 0 var(--button-shadow);
   --shadow-paper: 0 18px 45px var(--paper-shadow);
+  --shadow-notebook-inset: inset 0 2px 5px var(--notebook-inset-shadow), 0 1px 0 var(--notebook-inset-highlight);
 }
 
 :root {
@@ -88,12 +89,18 @@
   --destructive-foreground: oklch(0.99 0.01 88);
   --border: oklch(0.79 0.045 78);
   --input: oklch(0.79 0.045 78);
-  --ring: oklch(0.58 0.12 151);
+  --ring: oklch(0.5 0.08 55);
   --button-shadow: oklch(0.44 0.11 33 / 0.32);
   --paper-shadow: oklch(0.3 0.03 68 / 0.15);
-  --brand-foil-dark: oklch(0.53 0.09 82);
-  --brand-foil-mid: oklch(0.74 0.11 85);
-  --brand-foil-light: oklch(0.89 0.1 91);
+  --notebook-inset: oklch(0.915 0.031 82);
+  --notebook-inset-edge: oklch(0.76 0.045 77 / 0.72);
+  --notebook-inset-shadow: oklch(0.31 0.035 68 / 0.14);
+  --notebook-inset-highlight: oklch(1 0 0 / 0.65);
+  --notebook-field: oklch(0.965 0.023 87);
+  --notebook-action-shadow: oklch(0.43 0.12 33 / 0.28);
+  --brand-foil-dark: oklch(0.46 0.12 76);
+  --brand-foil-mid: oklch(0.74 0.16 85);
+  --brand-foil-light: oklch(0.97 0.08 96);
   --brand-engraved-edge: oklch(0.39 0.07 82);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
@@ -166,7 +173,7 @@
 @keyframes mascot-open-to-floor { 0%, 38% { opacity: 0; transform: translate(-50%, 55%) scale(.62) rotateX(18deg); } 68% { opacity: 1; transform: translate(-50%, 8%) scale(1.04) rotateX(0); } 100% { opacity: 1; transform: translate(-50%, 58%) scale(1) rotateX(0); } }
 @keyframes pen-write { 0%,100% { transform: translate(0,0) rotate(-34deg); } 50% { transform: translate(-42px,6px) rotate(-29deg); } }
 @keyframes listening { 0%,100% { box-shadow: 0 0 0 0 oklch(0.67 0.16 145 / .5); } 50% { box-shadow: 0 0 0 7px oklch(0.67 0.16 145 / 0); } }
-@keyframes wave { 0%,100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg) translateY(-2px); } }
+@keyframes wave { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-7px) rotate(-1.2deg); } }
 @keyframes foil-gleam {
   0%, 58% { background-position: 115% 50%; }
   82%, 100% { background-position: -35% 50%; }
@@ -180,14 +187,14 @@
   font-weight: 700;
   font-variant-numeric: lining-nums;
   line-height: 1;
+  letter-spacing: .01em;
   color: var(--brand-foil-mid);
   background-image: linear-gradient(105deg, var(--brand-foil-dark) 0%, var(--brand-foil-mid) 38%, var(--brand-foil-light) 48%, var(--brand-foil-mid) 58%, var(--brand-foil-dark) 100%);
   background-size: 280% 100%;
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  -webkit-text-stroke: .65px var(--brand-engraved-edge);
-  paint-order: stroke fill;
+  text-shadow: 0 -.5px 0 oklch(0.35 0.05 60 / .16), 0 1px 1px oklch(1 0 0 / .4);
   animation: foil-gleam 4.8s ease-in-out infinite;
 }
 .mascot-enter { animation: mascot-enter .7s cubic-bezier(.2,.8,.2,1) both; filter: drop-shadow(0 18px 15px oklch(0.3 0.03 68 / .17)); }
@@ -214,12 +221,17 @@
 /* Greeting bubble — appears with the mascot, then gently bobs. */
 .mascot-wave {
   position: absolute;
-  right: -6%;
-  top: 16%;
+  left: 82%;
+  top: 6%;
   display: inline-flex;
   align-items: center;
   transform-origin: bottom left;
-  animation: bubble-pop .5s cubic-bezier(.2,1.5,.4,1) .55s both, wave 3.2s ease-in-out 1.1s infinite;
+  animation: bubble-pop .5s cubic-bezier(.2,1.5,.4,1) .55s both, wave 4.2s ease-in-out .8s infinite;
+}
+.mascot-wave-tilt {
+  display: inline-block;
+  transform-origin: 50% 100%;
+  animation: mascot-look 9s ease-in-out 1.2s infinite;
 }
 .mascot-wave b {
   position: relative;
@@ -235,6 +247,16 @@
   font-size: 1rem;
   white-space: nowrap;
 }
+.typewriter-cursor {
+  display: inline-block;
+  width: 2px;
+  height: .9em;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: currentColor;
+  animation: typewriter-blink 1s step-end infinite;
+}
+@keyframes typewriter-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 .mascot-wave i {
   position: absolute;
   left: .35rem;
@@ -292,6 +314,67 @@
 .meeting-stage { animation: none; }
 .listening-dot { width: .6rem; height: .6rem; border-radius: 50%; background: oklch(0.67 0.16 145); animation: listening 1.6s ease-in-out infinite; }
 .listening-dot-paused { background: oklch(0.7 0.03 80); animation: none; }
+/* A soft raised writing card resting on the notebook page. */
+.notebook-inset {
+  position: relative;
+  padding: .75rem;
+  border: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
+  border-radius: 1.5rem;
+  background: var(--card);
+  box-shadow: 0 18px 34px -18px var(--paper-shadow), 0 4px 10px -6px var(--paper-shadow), inset 0 1px 0 var(--notebook-inset-highlight);
+}
+.notebook-inset-field {
+  position: relative;
+  z-index: 1;
+  min-height: 4.5rem;
+  border: 1px solid transparent;
+  border-radius: 1.1rem;
+  background: var(--notebook-inset);
+  box-shadow: inset 0 1px 2px var(--notebook-inset-shadow);
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.notebook-inset-field:focus {
+  border-color: var(--ring);
+  box-shadow: inset 0 1px 2px var(--notebook-inset-shadow), 0 0 0 2px color-mix(in oklab, var(--ring) 22%, transparent);
+}
+.notebook-inset-action {
+  position: relative;
+  z-index: 1;
+  min-height: 3.1rem;
+  border-radius: 1.1rem;
+  box-shadow: 0 4px 0 var(--notebook-action-shadow);
+}
+.notebook-inset-action:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 0 var(--notebook-action-shadow);
+}
+
+/* The notebook page itself — gently bowed as if the card is weighing it down. */
+.paper-surface {
+  background: var(--background);
+  transform: perspective(1200px) rotateX(1.2deg);
+  transform-origin: center top;
+}
+.paper-surface::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 55% at 50% 58%, oklch(0.82 0.025 80 / 0.22), transparent 70%);
+  pointer-events: none;
+}
+.paper-weight {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(120%, 560px);
+  height: 230px;
+  transform: translate(-50%, 10%);
+  background: radial-gradient(ellipse at center, var(--paper-shadow), transparent 70%);
+  filter: blur(26px);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: -1;
+}
 .meeting-toolbar-btn { box-shadow: 0 3px 0 var(--button-shadow); }
 .meeting-toolbar-btn:active { box-shadow: 0 1px 0 var(--button-shadow); }
 .meeting-toolbar-btn-danger { box-shadow: 0 3px 0 oklch(0.42 0.16 25 / .45); }
@@ -369,7 +452,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .brand-wordmark, .mascot-enter, .mascot-bob, .mascot-look, .mascot-blink, .mascot-wave, .meeting-stage, .listening-dot, .bubble-in, .meeting-mascot-closed, .meeting-mascot-open, .writing-pen, .summary-stage, .sleepy-mascot-img, .sleepy-z { animation: none; }
+  .brand-wordmark, .mascot-enter, .mascot-bob, .mascot-look, .mascot-blink, .mascot-wave, .mascot-wave-tilt, .meeting-stage, .listening-dot, .bubble-in, .meeting-mascot-closed, .meeting-mascot-open, .writing-pen, .summary-stage, .sleepy-mascot-img, .sleepy-z, .typewriter-cursor { animation: none; }
   .mascot-blink { opacity: 0; }
   .sleepy-mascot-img { transform: none; }
   .sleepy-z { opacity: .8; }
