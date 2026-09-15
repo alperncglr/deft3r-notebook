@@ -53,6 +53,21 @@ type IntroPlacement = CSSProperties & {
   "--intro-sit-apex-x": string;
   "--intro-sit-apex-y": string;
   "--intro-sit-arc-y": string;
+  "--intro-logo-dx": string;
+  "--intro-logo-dy": string;
+  "--intro-logo-scale": string;
+  "--intro-name-dx": string;
+  "--intro-name-dy": string;
+  "--intro-name-scale": string;
+  "--intro-assistant-dx": string;
+  "--intro-assistant-dy": string;
+  "--intro-assistant-scale": string;
+  "--intro-powered-dx": string;
+  "--intro-powered-dy": string;
+  "--intro-shadow-left": string;
+  "--intro-shadow-top": string;
+  "--intro-shadow-width": string;
+  "--intro-shadow-height": string;
 };
 
 const conversation = [
@@ -73,14 +88,25 @@ function Index() {
   const [travelStartTop, setTravelStartTop] = useState<number | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [introVisible, setIntroVisible] = useState(true);
+  const [introReady, setIntroReady] = useState(false);
+  const [introStarted, setIntroStarted] = useState(false);
   const [introPlacement, setIntroPlacement] = useState<IntroPlacement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const readyMascotRef = useRef<HTMLImageElement>(null);
+  const readyShadowRef = useRef<HTMLSpanElement>(null);
+  const headerLogoRef = useRef<HTMLImageElement>(null);
+  const headerNameRef = useRef<HTMLParagraphElement>(null);
+  const headerAssistantRef = useRef<HTMLParagraphElement>(null);
+  const openingLogoRef = useRef<HTMLImageElement>(null);
+  const openingNameRef = useRef<HTMLParagraphElement>(null);
+  const openingAssistantRef = useRef<HTMLParagraphElement>(null);
+  const openingPoweredRef = useRef<HTMLParagraphElement>(null);
 
   useLayoutEffect(() => {
     const placeIntro = () => {
       const target = readyMascotRef.current?.getBoundingClientRect();
-      if (!target || target.width === 0) return;
+      const targetShadow = readyShadowRef.current?.getBoundingClientRect();
+      if (!target || !targetShadow || target.width === 0) return;
 
       const startWidth = Math.min(window.innerWidth * 0.34, 170);
       const startLeft = (window.innerWidth - startWidth) / 2;
@@ -100,6 +126,21 @@ function Index() {
       const sitApexY = -Math.max(24, Math.min(90, startTop * 0.55));
 
       setIntroPlacement({
+        "--intro-logo-dx": "0px",
+        "--intro-logo-dy": "0px",
+        "--intro-logo-scale": "1",
+        "--intro-name-dx": "0px",
+        "--intro-name-dy": "0px",
+        "--intro-name-scale": "1",
+        "--intro-assistant-dx": "0px",
+        "--intro-assistant-dy": "0px",
+        "--intro-assistant-scale": "1",
+        "--intro-powered-dx": "0px",
+        "--intro-powered-dy": "0px",
+        "--intro-shadow-left": `${targetShadow.left}px`,
+        "--intro-shadow-top": `${targetShadow.top}px`,
+        "--intro-shadow-width": `${targetShadow.width}px`,
+        "--intro-shadow-height": `${targetShadow.height}px`,
         "--intro-sit-dx": `${sitDx}px`,
         "--intro-sit-dy": `${sitDy}px`,
         "--intro-sit-scale": `${target.width / startWidth}`,
@@ -120,6 +161,7 @@ function Index() {
         "--intro-sitting-top": `${startTop}px`,
         "--intro-sitting-size": `${startWidth}px`,
       });
+
     };
 
     const frame = window.requestAnimationFrame(placeIntro);
@@ -130,11 +172,64 @@ function Index() {
     };
   }, []);
 
+  useLayoutEffect(() => {
+    if (!introPlacement || !introVisible || introReady) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const sourceLogo = openingLogoRef.current?.getBoundingClientRect();
+      const sourceName = openingNameRef.current?.getBoundingClientRect();
+      const sourceAssistant = openingAssistantRef.current?.getBoundingClientRect();
+      const sourcePowered = openingPoweredRef.current?.getBoundingClientRect();
+      const targetLogo = headerLogoRef.current?.getBoundingClientRect();
+      const targetName = headerNameRef.current?.getBoundingClientRect();
+      const targetAssistant = headerAssistantRef.current?.getBoundingClientRect();
+
+      if (!sourceLogo || !sourceName || !sourceAssistant || !sourcePowered || !targetLogo || !targetName || !targetAssistant) return;
+
+      const delta = (source: DOMRect, target: DOMRect) => ({
+        x: target.left - source.left,
+        y: target.top - source.top,
+        scale: target.width / source.width,
+      });
+      const logo = delta(sourceLogo, targetLogo);
+      // DEFT3R yazısı ve "Toplantı asistanı" etiketi, açılış ekranında da
+      // header'daki gerçek boyutlarıyla (paylaşılan CSS kuralı sayesinde)
+      // birebir aynı font-size'da render ediliyor — bu yüzden scale'i
+      // ölçülen (piksel gürültüsü içerebilen) orana değil, sabit 1'e
+      // sabitliyoruz; sadece konum (dx/dy) değişiyor. Aksi halde metne
+      // uygulanan ufak bir scale, tam geçiş anında bulanıklaşmaya/"büyük
+      // kalma" hissine sebep oluyordu.
+      const name = { ...delta(sourceName, targetName), scale: 1 };
+      const assistant = { ...delta(sourceAssistant, targetAssistant), scale: 1 };
+      const powered = delta(sourcePowered, targetAssistant);
+
+      setIntroPlacement((current) => current && ({
+        ...current,
+        "--intro-logo-dx": `${logo.x}px`,
+        "--intro-logo-dy": `${logo.y}px`,
+        "--intro-logo-scale": `${logo.scale}`,
+        "--intro-name-dx": `${name.x}px`,
+        "--intro-name-dy": `${name.y}px`,
+        "--intro-name-scale": `${name.scale}`,
+        "--intro-assistant-dx": `${assistant.x}px`,
+        "--intro-assistant-dy": `${assistant.y}px`,
+        "--intro-assistant-scale": `${assistant.scale}`,
+        "--intro-powered-dx": `${powered.x}px`,
+        "--intro-powered-dy": `${powered.y}px`,
+      }));
+      setIntroReady(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [introPlacement, introReady, introVisible]);
+
   useEffect(() => {
-    if (!introPlacement) return;
+    // Zıplama animasyonu ancak kullanıcı "Başla" düğmesine bastıktan sonra
+    // oynuyor; bu yüzden emniyet zaman aşımı da o andan itibaren sayılmalı.
+    if (!introStarted) return;
     const fallback = window.setTimeout(() => setIntroVisible(false), 6400);
     return () => window.clearTimeout(fallback);
-  }, [introPlacement]);
+  }, [introStarted]);
 
   // Toplantı videosunu, kullanıcı "Toplantıyı Başlat"a basmadan önce arka
   // planda önceden yükle — aksi halde ilk tıklamada video ağdan inene kadar
@@ -250,18 +345,21 @@ function Index() {
   }
 
   return (
-    <main className={cn("relative h-screen overflow-hidden bg-background text-foreground", introVisible && "intro-active", introVisible && introPlacement && "intro-ready")}>
+    <main className={cn("relative h-screen overflow-hidden bg-background text-foreground", introVisible && "intro-active", introVisible && introStarted && "intro-ready")}>
       <div aria-hidden="true" className="paper-surface absolute inset-0" />
       <div aria-hidden="true" className="paper-grid absolute inset-0" />
       <header className={cn("app-header relative z-20 mx-auto flex w-full max-w-6xl items-center justify-end px-5 py-5 sm:px-8", state !== "meeting" && "brand-hero")}>
         <button className="brand-badge" onClick={reset} aria-label="DEFT3R başlangıç ekranı">
-          <img src={mascot} alt="" width={1024} height={1024} className="brand-badge-mascot object-contain" />
-          <img src="/media/teb-ai-mark.png" alt="TEB AI logosu" className="brand-badge-teb object-contain" />
+          <span className="brand-badge-mascot">
+            <span className="mascot-look block h-full w-full">
+              <img src={mascot} alt="" width={1024} height={1024} className="block h-full w-full object-contain" />
+              <img src={blinkMascot} alt="" aria-hidden="true" width={1024} height={1024} className="mascot-blink absolute inset-0 h-full w-full object-contain" />
+            </span>
+          </span>
+          <img ref={headerLogoRef} src="/media/teb-ai-mark.png" alt="TEB AI logosu" className="brand-badge-teb object-contain" />
           <div className="brand-badge-text text-left leading-none">
-            <p className="brand-wordmark brand-badge-word" aria-label="DEFT3R">
-              DEFT3R
-            </p>
-            <p className="brand-badge-tag mt-1 font-semibold uppercase text-muted-foreground">Toplantı asistanı</p>
+            <p ref={headerNameRef} className="brand-wordmark brand-badge-word" aria-label="DEFT3R">DEFT3R</p>
+            <p ref={headerAssistantRef} className="brand-badge-tag mt-1 font-semibold uppercase text-muted-foreground">Toplantı asistanı</p>
           </div>
         </button>
         {state === "meeting" && (
@@ -287,7 +385,7 @@ function Index() {
         {state === "ready" && (
           <div className="ready-stage relative mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center text-center">
             <div className={cn("mascot-enter relative", !introVisible && "intro-played")}>
-              <span className="mascot-shadow" />
+              <span ref={readyShadowRef} className="mascot-shadow" />
               <span className="mascot-bob relative block w-[min(72vw,330px)]">
                 <span className="mascot-look block">
                   <img ref={readyMascotRef} src={mascot} alt="Gülümseyen mavi defter maskotu" width={1024} height={1024} className="block w-full object-contain" />
@@ -296,7 +394,7 @@ function Index() {
               </span>
               <span className="mascot-wave" aria-hidden="true">
                 <span className="mascot-wave-tilt">
-                  <TypewriterGreeting />
+                  {introVisible ? <b>Merhaba<span className="typewriter-cursor" /></b> : <TypewriterGreeting />}
                   <i />
                 </span>
               </span>
@@ -345,9 +443,8 @@ function Index() {
               <img src={sleepingMascot} alt="" width={1024} height={1024} className="sleepy-mascot-img object-contain" />
               <span className="sleepy-floor" aria-hidden="true" />
             </div>
-            <p className="mt-2 text-xs font-semibold uppercase text-muted-foreground">{meetingName} · {time}</p>
-            <h1 className="mt-2 text-center font-display text-3xl font-bold">Toplantı tamamlandı</h1>
-            <p className="mt-2 text-center text-sm text-muted-foreground">Ne hazırlamamı istersin? Hazır olunca dosya otomatik iner.</p>
+            <p className="mt-2 text-xs font-semibold uppercase text-muted-foreground">Toplantı Tamamlandı</p>
+            <h1 className="mt-2 text-center font-display text-3xl font-bold">{meetingName} · {time}</h1>
 
 
             <div className="mt-6 grid w-full gap-3 sm:grid-cols-2" aria-live="polite">
@@ -356,7 +453,7 @@ function Index() {
                 onClick={prepareSummary}
                 disabled={summaryStatus === "working"}
               >
-                {summaryStatus === "working" ? (<><Loader2 className="size-4 animate-spin" /> Toplantı özeti alınıyor…</>)
+                {summaryStatus === "working" ? (<><Loader2 className="size-4 animate-spin" /> Toplantı özeti hazırlanıyor...</>)
                   : summaryStatus === "done" ? (<><Check className="size-4" /> Özet indirildi · tekrar al</>)
                   : (<><FileText className="size-4" /> Toplantı özeti al</>)}
               </Button>
@@ -366,9 +463,9 @@ function Index() {
                 onClick={prepareTranscript}
                 disabled={transcriptStatus === "working"}
               >
-                {transcriptStatus === "working" ? (<><Loader2 className="size-4 animate-spin" /> Transkript alınıyor…</>)
-                  : transcriptStatus === "done" ? (<><Check className="size-4" /> Transkript indirildi · tekrar al</>)
-                  : (<><Download className="size-4" /> Toplantı transkripti al</>)}
+                {transcriptStatus === "working" ? (<><Loader2 className="size-4 animate-spin" /> Toplantı dökümü hazırlanıyor...</>)
+                  : transcriptStatus === "done" ? (<><Check className="size-4" /> Toplantı dökümü indirildi · tekrar al</>)
+                  : (<><Download className="size-4" /> Toplantı dökümünü indir</>)}
               </Button>
             </div>
 
@@ -379,15 +476,22 @@ function Index() {
         )}
       </section>
       {introVisible && (
-        <div className={cn("opening-screen", introPlacement && "is-ready")} aria-hidden="true">
-          <div className="opening-brand-lockup" style={introPlacement ?? undefined}>
-            <img src="/media/teb-ai-mark.png" alt="" className="opening-logo" />
-            <p className="brand-wordmark opening-brand-name">DEFT3R</p>
-            <p className="opening-brand-powered">powered by T3AI</p>
+        <div className={cn("opening-screen", introReady && "is-ready", introStarted && "is-started")}>
+          <div className="opening-brand-lockup" style={introPlacement ?? undefined} aria-hidden="true">
+            <img ref={openingLogoRef} src="/media/teb-ai-mark.png" alt="" className="opening-logo" />
+            <p ref={openingNameRef} className="brand-wordmark opening-brand-name">DEFT3R</p>
+            <p ref={openingAssistantRef} className="opening-brand-assistant">Toplantı asistanı</p>
+            <p ref={openingPoweredRef} className="opening-brand-powered">made with pure hate ❤️ </p>
           </div>
+          {introReady && !introStarted && (
+            <button type="button" className="opening-start-btn" onClick={() => setIntroStarted(true)}>
+              <Play className="size-4 fill-current" /> Başla
+            </button>
+          )}
           <div
             className="opening-jumping-mascot"
             style={introPlacement ?? undefined}
+            aria-hidden="true"
             onAnimationEnd={(event) => {
               if (event.animationName === "opening-sit-jump") setIntroVisible(false);
             }}
@@ -403,7 +507,7 @@ function Index() {
               <img src={mascot} alt="" className="opening-landing-pose" />
             </div>
           </div>
-          <span className="opening-landing-shadow" style={introPlacement ?? undefined} />
+          <span className="opening-landing-shadow" style={introPlacement ?? undefined} aria-hidden="true" />
         </div>
       )}
     </main>
