@@ -1,10 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Check, CircleStop, Download, FileText, Loader2, Pause, Play, RotateCcw } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 import { ChromaKeyVideo } from "@/components/chroma-key-video";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import sittingMascotBody from "@/assets/deft3r-mascot-sitting-body.png";
+import sittingLegLeftUpper from "@/assets/deft3r-mascot-sitting-leg-left-upper.png";
+import sittingLegLeftLower from "@/assets/deft3r-mascot-sitting-leg-left-lower.png";
+import sittingLegRightUpper from "@/assets/deft3r-mascot-sitting-leg-right-upper.png";
+import sittingLegRightLower from "@/assets/deft3r-mascot-sitting-leg-right-lower.png";
 
 const mascot = "/media/deft3r-notebook-mascot.png";
 const sleepingMascot = "/media/deft3r-mascot-sleeping.png";
@@ -28,6 +33,26 @@ export const Route = createFileRoute("/")({
 
 type AppState = "ready" | "meeting" | "closing" | "summary";
 type DocStatus = "idle" | "working" | "done";
+type IntroPlacement = CSSProperties & {
+  "--intro-target-left": string;
+  "--intro-target-top": string;
+  "--intro-target-width": string;
+  "--intro-target-height": string;
+  "--intro-start-x": string;
+  "--intro-start-y": string;
+  "--intro-start-scale": string;
+  "--intro-apex-x": string;
+  "--intro-apex-y": string;
+  "--intro-logo-top": string;
+  "--intro-sitting-left": string;
+  "--intro-sitting-top": string;
+  "--intro-sitting-size": string;
+  "--intro-sit-dx": string;
+  "--intro-sit-dy": string;
+  "--intro-sit-scale": string;
+  "--intro-sit-apex-x": string;
+  "--intro-sit-apex-y": string;
+};
 
 const conversation = [
   { name: "Ayşe", initials: "AY", tone: "coral", time: "00:08", text: "Günaydın! Önce bu haftanın önceliklerini netleştirelim." },
@@ -46,8 +71,64 @@ function Index() {
   const [transcriptStatus, setTranscriptStatus] = useState<DocStatus>("idle");
   const [travelStartTop, setTravelStartTop] = useState<number | null>(null);
   const [isPaused, setIsPaused] = useState(false);
+  const [introVisible, setIntroVisible] = useState(true);
+  const [introPlacement, setIntroPlacement] = useState<IntroPlacement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const readyMascotRef = useRef<HTMLSpanElement>(null);
+
+  useLayoutEffect(() => {
+    const placeIntro = () => {
+      const target = readyMascotRef.current?.getBoundingClientRect();
+      if (!target || target.width === 0) return;
+
+      const startWidth = Math.min(window.innerWidth * 0.34, 170);
+      const startLeft = (window.innerWidth - startWidth) / 2;
+      const startTop = Math.max(18, window.innerHeight * 0.055);
+      const startX = startLeft - target.left;
+      const startY = startTop - target.top;
+
+      // Gövdenin (defterin) alt kenarı görselin ~%77'sinde bitiyor; logonun üst
+      // kenarını oraya koyunca maskot gerçekten logonun üstüne oturuyor,
+      // bacakları da logonun önünde sarkıyor.
+      const logoTop = startTop + startWidth * 0.772;
+      const sitDx = target.left - startLeft;
+      const sitDy = target.top - startTop;
+
+      setIntroPlacement({
+        "--intro-sit-dx": `${sitDx}px`,
+        "--intro-sit-dy": `${sitDy}px`,
+        "--intro-sit-scale": `${target.width / startWidth}`,
+        "--intro-sit-apex-x": `${sitDx * 0.5}px`,
+        "--intro-sit-apex-y": `${-Math.max(24, Math.min(90, startTop * 0.55))}px`,
+        "--intro-target-left": `${target.left}px`,
+        "--intro-target-top": `${target.top}px`,
+        "--intro-target-width": `${target.width}px`,
+        "--intro-target-height": `${target.height}px`,
+        "--intro-start-x": `${startX}px`,
+        "--intro-start-y": `${startY}px`,
+        "--intro-start-scale": `${startWidth / target.width}`,
+        "--intro-apex-x": `${startX * 0.52}px`,
+        "--intro-apex-y": `${Math.min(startY, 0) - Math.min(120, window.innerHeight * 0.13)}px`,
+        "--intro-logo-top": `${logoTop}px`,
+        "--intro-sitting-left": `${startLeft}px`,
+        "--intro-sitting-top": `${startTop}px`,
+        "--intro-sitting-size": `${startWidth}px`,
+      });
+    };
+
+    const frame = window.requestAnimationFrame(placeIntro);
+    window.addEventListener("resize", placeIntro);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", placeIntro);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!introPlacement) return;
+    const fallback = window.setTimeout(() => setIntroVisible(false), 6400);
+    return () => window.clearTimeout(fallback);
+  }, [introPlacement]);
 
   // Toplantı videosunu, kullanıcı "Toplantıyı Başlat"a basmadan önce arka
   // planda önceden yükle — aksi halde ilk tıklamada video ağdan inene kadar
@@ -108,7 +189,9 @@ function Index() {
     setIsPaused(false);
   }
 
-  const time = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  const minutesLabel = String(Math.floor(seconds / 60)).padStart(2, "0");
+  const secondsLabel = String(seconds % 60).padStart(2, "0");
+  const time = `${minutesLabel}:${secondsLabel}`;
   const meetingName = title.trim() || "İsimsiz toplantı";
 
   function download(fileName: string, content: string) {
@@ -161,7 +244,7 @@ function Index() {
   }
 
   return (
-    <main className="relative h-screen overflow-hidden bg-background text-foreground">
+    <main className={cn("relative h-screen overflow-hidden bg-background text-foreground", introVisible && "intro-active")}>
       <div aria-hidden="true" className="paper-surface absolute inset-0" />
       <div aria-hidden="true" className="paper-grid absolute inset-0" />
       <header className={cn("app-header relative z-20 mx-auto flex w-full max-w-6xl items-center justify-end px-5 py-5 sm:px-8", state !== "meeting" && "brand-hero")}>
@@ -180,7 +263,12 @@ function Index() {
             <span className="hidden items-center gap-2 text-sm font-semibold sm:flex">
               <i className={cn("listening-dot", isPaused && "listening-dot-paused")} /> {isPaused ? "Duraklatıldı" : "Dinliyor"}
             </span>
-            <time className="font-mono text-sm font-semibold tabular-nums">{time}</time>
+            <time className="font-mono text-sm font-semibold tabular-nums">
+              {minutesLabel}:
+              <span className="timer-seconds-window">
+                <span key={secondsLabel} className="timer-seconds-tick">{secondsLabel}</span>
+              </span>
+            </time>
             <Button variant="quiet" size="sm" className="meeting-toolbar-btn rounded-full ring-1 ring-border" onClick={() => setIsPaused((value) => !value)}>
               {isPaused ? (<><Play className="size-4 fill-current" /> Devam Et</>) : (<><Pause className="size-4" /> Kaydı Durdur</>)}
             </Button>
@@ -192,7 +280,7 @@ function Index() {
       <section className="relative z-10 mx-auto flex min-h-[calc(100vh-84px)] max-w-5xl flex-col px-5 pb-8 sm:px-8">
         {state === "ready" && (
           <div className="ready-stage relative mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center text-center">
-            <div className="mascot-enter relative">
+            <div className={cn("mascot-enter relative", !introVisible && "intro-played")}>
               <span className="mascot-shadow" />
               <span ref={readyMascotRef} className="mascot-bob relative block w-[min(72vw,330px)]">
                 <span className="mascot-look block">
@@ -284,6 +372,29 @@ function Index() {
           </div>
         )}
       </section>
+      {introVisible && (
+        <div className={cn("opening-screen", introPlacement && "is-ready")} aria-hidden="true">
+          <div className="opening-paper" />
+          <img src="/media/teb-ai-mark.png" alt="" className="opening-logo" style={introPlacement ?? undefined} />
+          <div className="opening-sitting-mascot" style={introPlacement ?? undefined}>
+            <img src={sittingMascotBody} alt="" className="opening-sitting-body" />
+            <img src={sittingLegLeftLower} alt="" className="opening-sitting-shin opening-sitting-shin-left" />
+            <img src={sittingLegRightLower} alt="" className="opening-sitting-shin opening-sitting-shin-right" />
+            <img src={sittingLegLeftUpper} alt="" className="opening-sitting-thigh" />
+            <img src={sittingLegRightUpper} alt="" className="opening-sitting-thigh" />
+          </div>
+          <img
+            src={mascot}
+            alt=""
+            className="opening-mascot"
+            style={introPlacement ?? undefined}
+            onAnimationEnd={(event) => {
+              if (event.animationName === "opening-sit-jump") setIntroVisible(false);
+            }}
+          />
+          <span className="opening-landing-shadow" style={introPlacement ?? undefined} />
+        </div>
+      )}
     </main>
   );
 }
