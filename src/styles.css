@@ -220,6 +220,14 @@
   0%, 78% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); animation-timing-function: cubic-bezier(.2,.45,.35,1); }
   100% { opacity: 0; transform: translateX(-50%) translateY(-30vh) scale(.96); }
 }
+@keyframes opening-ready-brand-in {
+  from { opacity: 0; transform: translateY(calc(-50% + 26px)); }
+  to { opacity: 1; transform: translateY(-50%); }
+}
+@keyframes opening-ready-content-in {
+  from { opacity: 0; transform: translateY(26px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 @keyframes opening-shadow-land {
   0%, 84% { opacity: 0; transform: translateX(-50%) scale(.35); }
@@ -233,7 +241,7 @@
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  background: var(--background);
+  background: transparent;
 }
 .opening-paper {
   position: absolute;
@@ -318,7 +326,22 @@
 .opening-screen.is-ready .opening-sitting-pose { animation: opening-sitting-pose-fold 5.2s linear both; }
 .opening-screen.is-ready .opening-landing-pose { animation: opening-landing-pose-unfold 5.2s linear both; }
 .opening-screen.is-ready .opening-landing-shadow { animation: opening-shadow-land 5.2s ease both; }
-.intro-active .ready-stage > :not(.mascot-enter) { visibility: hidden; }
+.intro-active .app-header .brand-badge {
+  animation: opening-ready-brand-in .68s cubic-bezier(.23,1,.32,1) 4.06s both;
+  will-change: transform, opacity;
+}
+.intro-active .ready-heading {
+  animation: opening-ready-content-in .58s cubic-bezier(.23,1,.32,1) 4.12s both;
+  will-change: transform, opacity;
+}
+.intro-active .ready-paper-weight {
+  animation: opening-ready-content-in .58s cubic-bezier(.23,1,.32,1) 4.18s both;
+  will-change: transform, opacity;
+}
+.intro-active .ready-meeting-card {
+  animation: opening-ready-content-in .62s cubic-bezier(.23,1,.32,1) 4.24s both;
+  will-change: transform, opacity;
+}
 .intro-active .ready-stage .mascot-enter { visibility: hidden; animation: none; }
 .intro-active .mascot-bob,
 .intro-active .mascot-look { animation: none; }

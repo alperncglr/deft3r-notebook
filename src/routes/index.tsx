@@ -301,9 +301,9 @@ function Index() {
                 </span>
               </span>
             </div>
-            <h1 className="mt-1 font-display text-3xl font-bold sm:text-4xl">Bugünkü toplantı ne hakkında?</h1>
-            <div className="paper-weight" aria-hidden="true" />
-            <div className="notebook-inset mt-6 w-full">
+            <h1 className="ready-heading mt-1 font-display text-3xl font-bold sm:text-4xl">Bugünkü toplantı ne hakkında?</h1>
+            <div className="ready-paper-weight paper-weight" aria-hidden="true" />
+            <div className="ready-meeting-card notebook-inset mt-6 w-full">
               <label htmlFor="meeting-title" className="sr-only">Toplantı adı</label>
               <textarea id="meeting-title" value={title} onChange={(event) => setTitle(event.target.value)} rows={2} placeholder="Toplantı adı" className="notebook-inset-field w-full resize-none px-4 py-3 text-sm outline-none placeholder:text-muted-foreground" />
               <Button className="notebook-inset-action mt-2 w-full" onClick={startMeeting}><Play className="size-4 fill-current" /> Toplantıyı Başlat</Button>
@@ -380,7 +380,6 @@ function Index() {
       </section>
       {introVisible && (
         <div className={cn("opening-screen", introPlacement && "is-ready")} aria-hidden="true">
-          <div className="opening-paper" />
           <div className="opening-brand-lockup" style={introPlacement ?? undefined}>
             <img src="/media/teb-ai-mark.png" alt="" className="opening-logo" />
             <p className="brand-wordmark opening-brand-name">DEFT3R</p>
