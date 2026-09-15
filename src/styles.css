@@ -291,6 +291,11 @@
 }
 .meeting-stage { animation: none; }
 .listening-dot { width: .6rem; height: .6rem; border-radius: 50%; background: oklch(0.67 0.16 145); animation: listening 1.6s ease-in-out infinite; }
+.listening-dot-paused { background: oklch(0.7 0.03 80); animation: none; }
+.meeting-toolbar-btn { box-shadow: 0 3px 0 var(--button-shadow); }
+.meeting-toolbar-btn:active { box-shadow: 0 1px 0 var(--button-shadow); }
+.meeting-toolbar-btn-danger { box-shadow: 0 3px 0 oklch(0.42 0.16 25 / .45); }
+.meeting-toolbar-btn-danger:active { box-shadow: 0 1px 0 oklch(0.42 0.16 25 / .45); }
 .transcript-scroll { min-height: 260px; max-height: calc(100vh - 340px); padding-bottom: 1rem; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 .speech-row { display: flex; align-items: flex-start; gap: .75rem; }
 .speech-row-alt { padding-left: clamp(1rem, 8vw, 5rem); }
@@ -347,9 +352,9 @@
   transition: left .7s cubic-bezier(.22, 1, .36, 1);
 }
 .app-header.brand-hero .brand-badge { left: calc(50% - 8.5rem); width: 17rem; justify-content: center; }
-.brand-badge-mascot { order: 1; width: 2.75rem; height: 2.75rem; flex: none; transition: width .7s cubic-bezier(.22, 1, .36, 1), height .7s cubic-bezier(.22, 1, .36, 1), opacity .5s, margin .7s cubic-bezier(.22, 1, .36, 1); }
+.brand-badge-mascot { order: 3; width: 2.75rem; height: 2.75rem; flex: none; transition: width .7s cubic-bezier(.22, 1, .36, 1), height .7s cubic-bezier(.22, 1, .36, 1), opacity .5s, margin .7s cubic-bezier(.22, 1, .36, 1); }
 .app-header.brand-hero .brand-badge-mascot { order: 3; width: 0; height: 2.75rem; opacity: 0; margin-right: -.75rem; }
-.brand-badge-teb { order: 3; height: 2.1rem; flex: none; transition: height .7s cubic-bezier(.22, 1, .36, 1); }
+.brand-badge-teb { order: 1; height: 2.1rem; flex: none; transition: height .7s cubic-bezier(.22, 1, .36, 1); }
 .app-header.brand-hero .brand-badge-teb { order: 1; height: 3.75rem; }
 .brand-badge-text { order: 2; }
 .brand-badge-word { font-size: 1.25rem; letter-spacing: 0; transition: font-size .7s cubic-bezier(.22, 1, .36, 1); }

@@ -9,6 +9,8 @@ type ChromaKeyVideoProps = {
   loopFrom?: number;
   /** Buraya ulaşınca sessizce loopFrom'a atlanır (video hiç durmaz/kapanmaz). */
   loopTo?: number;
+  /** true olunca video tam o anki karede donar (kayıt durdurulduğunda). */
+  paused?: boolean;
 };
 
 /**
@@ -29,10 +31,11 @@ type VideoWithFrameCallback = HTMLVideoElement & {
   cancelVideoFrameCallback?: (handle: number) => void;
 };
 
-export function ChromaKeyVideo({ src, poster, className, style, loopFrom = 5.4, loopTo = 7.1 }: ChromaKeyVideoProps) {
+export function ChromaKeyVideo({ src, poster, className, style, loopFrom = 5.4, loopTo = 7.1, paused = false }: ChromaKeyVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isReady, setIsReady] = useState(false);
+  const hasStartedRef = useRef(false);
 
   useEffect(() => {
     const video = videoRef.current as VideoWithFrameCallback | null;
@@ -103,6 +106,7 @@ export function ChromaKeyVideo({ src, poster, className, style, loopFrom = 5.4, 
       video.currentTime = 0;
       window.clearTimeout(startTimer);
       startTimer = window.setTimeout(() => {
+        hasStartedRef.current = true;
         void video.play();
         if (useFrameCallback && video.requestVideoFrameCallback) {
           rafId = video.requestVideoFrameCallback(drawFrame);
@@ -118,6 +122,7 @@ export function ChromaKeyVideo({ src, poster, className, style, loopFrom = 5.4, 
 
     return () => {
       stopped = true;
+      hasStartedRef.current = false;
       window.clearTimeout(startTimer);
       if (useFrameCallback && video.cancelVideoFrameCallback) {
         video.cancelVideoFrameCallback(rafId);
@@ -129,6 +134,18 @@ export function ChromaKeyVideo({ src, poster, className, style, loopFrom = 5.4, 
       video.pause();
     };
   }, [src, loopFrom, loopTo]);
+
+  // Kayıt durdurulduğunda videoyu tam o anki karede dondur; devam edildiğinde
+  // kaldığı yerden oynatmaya devam etsin (baştan başlamasın).
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !hasStartedRef.current) return;
+    if (paused) {
+      video.pause();
+    } else if (video.paused) {
+      void video.play();
+    }
+  }, [paused]);
 
   return (
     <div className={className} style={style}>

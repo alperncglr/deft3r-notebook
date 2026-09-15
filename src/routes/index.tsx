@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, CircleStop, Download, FileText, Loader2, Mic, Play, RotateCcw } from "lucide-react";
+import { Check, CircleStop, Download, FileText, Loader2, Pause, Play, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { ChromaKeyVideo } from "@/components/chroma-key-video";
@@ -45,6 +45,7 @@ function Index() {
   const [summaryStatus, setSummaryStatus] = useState<DocStatus>("idle");
   const [transcriptStatus, setTranscriptStatus] = useState<DocStatus>("idle");
   const [travelStartTop, setTravelStartTop] = useState<number | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
   const readyMascotRef = useRef<HTMLSpanElement>(null);
 
@@ -59,7 +60,7 @@ function Index() {
   }, []);
 
   useEffect(() => {
-    if (state !== "meeting") return;
+    if (state !== "meeting" || isPaused) return;
     const timer = window.setInterval(() => setSeconds((value) => value + 1), 1000);
     const bubbles = window.setInterval(
       () => setVisibleMessages((value) => Math.min(value + 1, conversation.length)),
@@ -69,7 +70,7 @@ function Index() {
       window.clearInterval(timer);
       window.clearInterval(bubbles);
     };
-  }, [state]);
+  }, [state, isPaused]);
 
   useEffect(() => () => streamRef.current?.getTracks().forEach((track) => track.stop()), []);
 
@@ -84,6 +85,7 @@ function Index() {
     }
     setSeconds(0);
     setVisibleMessages(1);
+    setIsPaused(false);
     setState("meeting");
   }
 
@@ -91,6 +93,7 @@ function Index() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setVisibleMessages(conversation.length);
+    setIsPaused(false);
     setState("summary");
   }
 
@@ -102,6 +105,7 @@ function Index() {
     setNotice("");
     setSummaryStatus("idle");
     setTranscriptStatus("idle");
+    setIsPaused(false);
   }
 
   const time = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
@@ -172,9 +176,14 @@ function Index() {
         </button>
         {state === "meeting" && (
           <div className="flex items-center gap-3">
-            <span className="hidden items-center gap-2 text-sm font-semibold sm:flex"><i className="listening-dot" /> Dinliyor</span>
+            <span className="hidden items-center gap-2 text-sm font-semibold sm:flex">
+              <i className={cn("listening-dot", isPaused && "listening-dot-paused")} /> {isPaused ? "Duraklatıldı" : "Dinliyor"}
+            </span>
             <time className="font-mono text-sm font-semibold tabular-nums">{time}</time>
-            <Button variant="danger" size="sm" onClick={endMeeting}><CircleStop className="size-4" /> Bitir</Button>
+            <Button variant="quiet" size="sm" className="meeting-toolbar-btn rounded-full ring-1 ring-border" onClick={() => setIsPaused((value) => !value)}>
+              {isPaused ? (<><Play className="size-4 fill-current" /> Devam Et</>) : (<><Pause className="size-4" /> Kaydı Durdur</>)}
+            </Button>
+            <Button variant="danger" size="sm" className="meeting-toolbar-btn meeting-toolbar-btn-danger rounded-full" onClick={endMeeting}><CircleStop className="size-4" /> Bitir</Button>
           </div>
         )}
       </header>
@@ -196,10 +205,9 @@ function Index() {
               </span>
             </div>
             <h1 className="mt-1 font-display text-3xl font-bold sm:text-4xl">Bugünkü toplantı ne hakkında?</h1>
-            <p className="mt-2 text-sm text-muted-foreground">İsim vermeden de hemen başlayabilirsin.</p>
             <div className="mt-6 w-full rounded-2xl bg-card p-2 shadow-paper ring-1 ring-border">
-              <label htmlFor="meeting-title" className="sr-only">Toplantı adı, isteğe bağlı</label>
-              <textarea id="meeting-title" value={title} onChange={(event) => setTitle(event.target.value)} rows={2} placeholder="Toplantı adı (isteğe bağlı)" className="w-full resize-none rounded-xl bg-secondary px-4 py-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+              <label htmlFor="meeting-title" className="sr-only">Toplantı adı</label>
+              <textarea id="meeting-title" value={title} onChange={(event) => setTitle(event.target.value)} rows={2} placeholder="Toplantı adı" className="w-full resize-none rounded-xl bg-secondary px-4 py-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
               <Button className="mt-2 w-full" onClick={startMeeting}><Play className="size-4 fill-current" /> Toplantıyı Başlat</Button>
             </div>
             {notice && <p className="mt-3 text-sm font-medium text-destructive">{notice}</p>}
@@ -209,8 +217,7 @@ function Index() {
         {state === "meeting" && (
           <div className="meeting-stage flex min-h-0 flex-1 flex-col">
             <div className="mx-auto mb-4 text-center">
-              <p className="text-xs font-semibold uppercase text-muted-foreground">{title.trim() || "İsimsiz toplantı"}</p>
-              <h1 className="mt-1 font-display text-2xl font-bold sm:text-3xl">Konuşmalar deftere düşüyor</h1>
+              <h1 className="mt-1 font-display text-2xl font-bold sm:text-3xl">{title.trim() || "İsimsiz toplantı"}</h1>
             </div>
             <div className="transcript-scroll mx-auto flex w-full max-w-3xl flex-1 flex-col justify-end overflow-y-hidden px-1 pb-5">
               <div className="space-y-3">
@@ -225,8 +232,7 @@ function Index() {
                 ))}
               </div>
             </div>
-            <MeetingMascot startTop={travelStartTop} />
-            <div className="meeting-writing-status flex items-center justify-center gap-2 text-xs font-semibold text-muted-foreground"><Mic className="size-3.5" /> DEFT3R yazıyor…</div>
+            <MeetingMascot startTop={travelStartTop} isPaused={isPaused} />
             {notice && <p className="mt-2 text-center text-xs font-medium text-destructive">{notice}</p>}
           </div>
         )}
@@ -278,7 +284,7 @@ function Index() {
   );
 }
 
-function MeetingMascot({ startTop }: { startTop: number | null }) {
+function MeetingMascot({ startTop, isPaused }: { startTop: number | null; isPaused: boolean }) {
   return (
     <div className="meeting-mascot" role="img" aria-label="Açılıp toplantı notlarını yazan DEFT3R maskotu">
       <ChromaKeyVideo
@@ -286,6 +292,7 @@ function MeetingMascot({ startTop }: { startTop: number | null }) {
         poster={mascot}
         className="meeting-mascot-video"
         style={startTop !== null ? ({ "--travel-start-top": `${startTop}px` } as CSSProperties) : undefined}
+        paused={isPaused}
       />
     </div>
   );
