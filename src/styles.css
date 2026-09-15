@@ -216,17 +216,19 @@
   0%, 100% { transform: rotate(-12deg); }
   50% { transform: rotate(12deg); }
 }
+/* Sahne hareketi: maskot tepe noktasından (78%) yere değene (96%) kadar olan
+   pencerede, düşüşle birebir aynı easing ile tüm arayüz tek parça gibi yukarı kayar. */
 @keyframes opening-logo-exit {
-  0%, 78% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); animation-timing-function: cubic-bezier(.2,.45,.35,1); }
-  100% { opacity: 0; transform: translateX(-50%) translateY(-30vh) scale(.96); }
+  0%, 78% { opacity: 1; transform: translateX(-50%) translateY(0); animation-timing-function: cubic-bezier(.55,0,.85,.36); }
+  96%, 100% { opacity: 0; transform: translateX(-50%) translateY(-52vh); }
 }
-@keyframes opening-ready-brand-in {
-  from { opacity: 0; transform: translateY(calc(-50% + 26px)); }
-  to { opacity: 1; transform: translateY(-50%); }
+@keyframes opening-scene-rise-brand {
+  0%, 78% { opacity: 0; transform: translateY(calc(-50% + var(--scene-rise))); animation-timing-function: cubic-bezier(.55,0,.85,.36); }
+  96%, 100% { opacity: 1; transform: translateY(-50%); }
 }
-@keyframes opening-ready-content-in {
-  from { opacity: 0; transform: translateY(26px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes opening-scene-rise {
+  0%, 78% { opacity: 0; transform: translateY(var(--scene-rise)); animation-timing-function: cubic-bezier(.55,0,.85,.36); }
+  96%, 100% { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes opening-shadow-land {
@@ -326,20 +328,23 @@
 .opening-screen.is-ready .opening-sitting-pose { animation: opening-sitting-pose-fold 5.2s linear both; }
 .opening-screen.is-ready .opening-landing-pose { animation: opening-landing-pose-unfold 5.2s linear both; }
 .opening-screen.is-ready .opening-landing-shadow { animation: opening-shadow-land 5.2s ease both; }
-.intro-active .app-header .brand-badge {
-  animation: opening-ready-brand-in .68s cubic-bezier(.23,1,.32,1) 4.06s both;
+.intro-active {
+  --scene-rise: 26vh;
+}
+/* Sahne animasyonları maskotunkiyle tam aynı anda başlamalı: ikisi de
+   ölçüm tamamlandığında (intro-ready / is-ready) tetiklenir. */
+.intro-active .app-header .brand-badge,
+.intro-active .ready-heading,
+.intro-active .ready-paper-weight,
+.intro-active .ready-meeting-card { opacity: 0; }
+.intro-ready .app-header .brand-badge {
+  animation: opening-scene-rise-brand 5.2s linear both;
   will-change: transform, opacity;
 }
-.intro-active .ready-heading {
-  animation: opening-ready-content-in .58s cubic-bezier(.23,1,.32,1) 4.12s both;
-  will-change: transform, opacity;
-}
-.intro-active .ready-paper-weight {
-  animation: opening-ready-content-in .58s cubic-bezier(.23,1,.32,1) 4.18s both;
-  will-change: transform, opacity;
-}
-.intro-active .ready-meeting-card {
-  animation: opening-ready-content-in .62s cubic-bezier(.23,1,.32,1) 4.24s both;
+.intro-ready .ready-heading,
+.intro-ready .ready-paper-weight,
+.intro-ready .ready-meeting-card {
+  animation: opening-scene-rise 5.2s linear both;
   will-change: transform, opacity;
 }
 .intro-active .ready-stage .mascot-enter { visibility: hidden; animation: none; }

@@ -17,3 +17,5 @@
 - [x] Tum guncellemeleri GitHub deposuna (alperncglr/deft3r-notebook) eksiksiz pushla.
 - [x] Karsilama maskotu: gozlerini kirpistiran ve saga-sola bakan loop animasyonu.
 - [x] Toplanti bitince ara kapanis sahnesini kaldir (dogrudan ozet ekrani).
+- [x] Maskotun düşüş penceresiyle (78%→96%) aynı easing'te tek parça sahne yükselişi kur.
+- [x] Sahne kayma hızını maskotun düşüş hızıyla eşleştir ve Playwright ile doğrula.

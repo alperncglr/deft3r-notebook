@@ -250,7 +250,7 @@ function Index() {
   }
 
   return (
-    <main className={cn("relative h-screen overflow-hidden bg-background text-foreground", introVisible && "intro-active")}>
+    <main className={cn("relative h-screen overflow-hidden bg-background text-foreground", introVisible && "intro-active", introVisible && introPlacement && "intro-ready")}>
       <div aria-hidden="true" className="paper-surface absolute inset-0" />
       <div aria-hidden="true" className="paper-grid absolute inset-0" />
       <header className={cn("app-header relative z-20 mx-auto flex w-full max-w-6xl items-center justify-end px-5 py-5 sm:px-8", state !== "meeting" && "brand-hero")}>
