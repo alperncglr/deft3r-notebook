@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, CircleStop, Download, FileText, Loader2, Pause, Play, RotateCcw } from "lucide-react";
+import { Check, CircleStop, Download, FileText, Loader2, Moon, Pause, Play, RotateCcw, Sun } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 import { ChromaKeyVideo } from "@/components/chroma-key-video";
@@ -87,6 +87,7 @@ function Index() {
   const [transcriptStatus, setTranscriptStatus] = useState<DocStatus>("idle");
   const [travelStartTop, setTravelStartTop] = useState<number | null>(null);
   const [isPaused, setIsPaused] = useState(false);
+  const [isDark, setIsDark] = useState(false);
   const [introVisible, setIntroVisible] = useState(true);
   const [introReady, setIntroReady] = useState(false);
   const [introStarted, setIntroStarted] = useState(false);
@@ -230,6 +231,78 @@ function Index() {
     const fallback = window.setTimeout(() => setIntroVisible(false), 6400);
     return () => window.clearTimeout(fallback);
   }, [introStarted]);
+
+  // Gece modu tercihi tarayıcıda saklanıyor; sayfa ilk açılışta __root'taki
+  // betikle uygulanıyor, burada yalnızca düğmenin ikonu senkronize ediliyor.
+  useEffect(() => {
+    setIsDark(document.documentElement.classList.contains("dark"));
+  }, []);
+
+  function toggleTheme(event: React.MouseEvent<HTMLButtonElement>) {
+    const next = !isDark;
+    const applyTheme = () => {
+      document.documentElement.classList.toggle("dark", next);
+      try {
+        localStorage.setItem("deft3r-theme", next ? "dark" : "light");
+      } catch {
+        // localStorage kapalıysa seçim yalnızca bu oturum için geçerli kalır.
+      }
+      setIsDark(next);
+    };
+
+    // Switch'in tıklandığı noktadan büyüyen bir daire ile geçiş yapılıyor;
+    // View Transitions API'yi desteklemeyen tarayıcılarda ya da azaltılmış
+    // hareket tercih edildiğinde animasyonsuz, anlık geçiş yapılıyor.
+    // Not: API, geçiş boyunca tüm sayfayı statik bir ekran görüntüsü olarak
+    // dondurduğu için toplantı ekranındaki canlı video da bu ~650ms boyunca
+    // kısa bir an duraklamış görünür — bu, tekniğin doğasında olan kabul
+    // edilebilir bir durum.
+    const supportsViewTransition = typeof document.startViewTransition === "function";
+    if (!supportsViewTransition || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      applyTheme();
+      return;
+    }
+
+    const { clientX, clientY } = event;
+    const maxRadius = Math.hypot(
+      Math.max(clientX, window.innerWidth - clientX),
+      Math.max(clientY, window.innerHeight - clientY),
+    );
+
+    const transition = document.startViewTransition(() => {
+      applyTheme();
+    });
+
+    transition.ready.then(() => {
+      // Daire dümdüz (tam bir çember olarak) büyüyor — şekli hiç bozulmuyor.
+      // "Deniz dalgası" hissi, kırpılan şeklin görünen kenarını saran bir
+      // drop-shadow parıltısıyla veriliyor: parıltı ortada en güçlü, başta
+      // ve sonda sıfır, yani dalga cephesi dairenin kendisiyle birlikte
+      // ilerliyormuş gibi görünüyor.
+      document.documentElement.animate(
+        [
+          {
+            clipPath: `circle(0px at ${clientX}px ${clientY}px)`,
+            filter: "drop-shadow(0 0 0px oklch(1 0 0 / 0)) drop-shadow(0 0 0px oklch(0.4 0.05 60 / 0))",
+          },
+          {
+            clipPath: `circle(${maxRadius * 0.55}px at ${clientX}px ${clientY}px)`,
+            filter: "drop-shadow(0 0 18px oklch(1 0 0 / .55)) drop-shadow(0 0 5px oklch(0.4 0.05 60 / .35))",
+            offset: 0.55,
+          },
+          {
+            clipPath: `circle(${maxRadius}px at ${clientX}px ${clientY}px)`,
+            filter: "drop-shadow(0 0 0px oklch(1 0 0 / 0)) drop-shadow(0 0 0px oklch(0.4 0.05 60 / 0))",
+          },
+        ],
+        {
+          duration: 650,
+          easing: "ease-in-out",
+          pseudoElement: "::view-transition-new(root)",
+        },
+      );
+    });
+  }
 
   // Toplantı videosunu, kullanıcı "Toplantıyı Başlat"a basmadan önce arka
   // planda önceden yükle — aksi halde ilk tıklamada video ağdan inene kadar
@@ -379,6 +452,19 @@ function Index() {
             <Button variant="danger" size="sm" className="meeting-toolbar-btn meeting-toolbar-btn-danger rounded-full" onClick={endMeeting}><CircleStop className="size-4" /> Bitir</Button>
           </div>
         )}
+        <button
+          type="button"
+          className="theme-toggle ml-3"
+          onClick={toggleTheme}
+          role="switch"
+          aria-checked={isDark}
+          aria-label={isDark ? "Gündüz moduna geç" : "Gece moduna geç"}
+          title={isDark ? "Gündüz modu" : "Gece modu"}
+        >
+          <Sun className="theme-toggle-icon theme-toggle-sun" aria-hidden="true" />
+          <Moon className="theme-toggle-icon theme-toggle-moon" aria-hidden="true" />
+          <span className="theme-toggle-thumb" aria-hidden="true" />
+        </button>
       </header>
 
       <section className="relative z-10 mx-auto flex min-h-[calc(100vh-84px)] max-w-5xl flex-col px-5 pb-8 sm:px-8">
