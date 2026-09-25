@@ -12,4 +12,10 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // A4000 dağıtımı Cloudflare Workers değil, düz bir Node süreci olarak
+  // çalışacağından varsayılan cloudflare-module preset yerine node-server
+  // hedefleniyor (çıktı: .output/server/index.mjs, `node` ile çalıştırılır).
+  nitro: {
+    preset: "node-server",
+  },
 });

@@ -1,10 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, CircleStop, Download, FileText, Loader2, Moon, Pause, Play, RotateCcw, Sun } from "lucide-react";
+import { Check, ChevronDown, CircleStop, Download, FileText, Loader2, Moon, Pause, Play, RotateCcw, Sparkles, Sun } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 import { ChromaKeyVideo } from "@/components/chroma-key-video";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { LiveAudioStream, type LiveSegmentEvent } from "@/lib/liveAudioStream";
+import { downloadMeetingPdf, type MeetingPdfMetadata } from "@/lib/meetingPdf";
+import {
+  ApiError,
+  createMeeting,
+  finishMeeting,
+  getMeeting,
+  getTranscript,
+  getWebSocketUrl,
+  postSummary,
+  requestWebSocketToken,
+  startRecording,
+  stopRecording,
+  type MeetingDetail,
+  type MeetingLanguage,
+  type MeetingStatus,
+  type SummaryContent,
+} from "@/lib/meetingScribeApi";
 import sittingMascotBody from "@/assets/deft3r-mascot-sitting-body.png";
 import sittingLegLeftUpper from "@/assets/deft3r-mascot-sitting-leg-left-upper.png";
 import sittingLegLeftLower from "@/assets/deft3r-mascot-sitting-leg-left-lower.png";
@@ -20,9 +38,9 @@ const writingVideo = "/media/deft3r-open-and-continuous-writing.mp4";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "DEFT3R — Akıllı Toplantı Defteri" },
+      { title: "T3AI DEFTER — Akıllı Toplantı Defteri" },
       { name: "description", content: "Toplantıları gerçek zamanlı yazıya döken ve özetleyen sevimli dijital defter." },
-      { property: "og:title", content: "DEFT3R — Akıllı Toplantı Defteri" },
+      { property: "og:title", content: "T3AI DEFTER — Akıllı Toplantı Defteri" },
       { property: "og:description", content: "Toplantıları gerçek zamanlı yazıya döken ve özetleyen sevimli dijital defter." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -32,7 +50,7 @@ export const Route = createFileRoute("/")({
 });
 
 type AppState = "ready" | "meeting" | "closing" | "summary";
-type DocStatus = "idle" | "working" | "done";
+type DocStatus = "idle" | "working" | "done" | "error";
 type IntroPlacement = CSSProperties & {
   "--intro-target-left": string;
   "--intro-target-top": string;
@@ -70,21 +88,45 @@ type IntroPlacement = CSSProperties & {
   "--intro-shadow-height": string;
 };
 
-const conversation = [
-  { name: "Ayşe", initials: "AY", tone: "coral", time: "00:08", text: "Günaydın! Önce bu haftanın önceliklerini netleştirelim." },
-  { name: "Mert", initials: "ME", tone: "blue", time: "00:16", text: "Kullanıcı testlerini perşembeye kadar tamamlayabiliriz." },
-  { name: "Selin", initials: "SE", tone: "yellow", time: "00:25", text: "Harika, ben de bulguları cuma sabahı ekiple paylaşırım." },
-  { name: "Ayşe", initials: "AY", tone: "coral", time: "00:34", text: "O zaman bu haftanın ana hedefi kullanıcı testleri olsun." },
+const AVATAR_TONES = ["coral", "blue", "yellow"] as const;
+
+const meetingLanguages: ReadonlyArray<{
+  value: MeetingLanguage;
+  short: string;
+  name: string;
+}> = [
+  { value: "mixed", short: "Otomatik", name: "Otomatik / Çok dilli" },
+  { value: "tr", short: "TR Türkçe", name: "Türkçe" },
+  { value: "en", short: "GB English", name: "İngilizce" },
+  { value: "de", short: "DE Deutsch", name: "Almanca" },
+  { value: "fr", short: "FR Français", name: "Fransızca" },
 ];
+
+// Backend konuşmacıları "Kullanıcı N" olarak etiketliyor (isim/kimlik
+// tutulmuyor); numaraya göre deterministik bir renk ve kısa etiket üretiyoruz.
+function speakerVisual(label: string) {
+  const match = label.match(/\d+/);
+  const number = match ? Number(match[0]) : 1;
+  const tone = AVATAR_TONES[(number - 1) % AVATAR_TONES.length]!;
+  return { tone, initials: `K${number}`, number };
+}
 
 function Index() {
   const [state, setState] = useState<AppState>("ready");
   const [title, setTitle] = useState("");
+  const [language, setLanguage] = useState<MeetingLanguage>("mixed");
+  const [languageOpen, setLanguageOpen] = useState(false);
   const [seconds, setSeconds] = useState(0);
-  const [visibleMessages, setVisibleMessages] = useState(0);
   const [notice, setNotice] = useState("");
+  const [meetingId, setMeetingId] = useState<number | null>(null);
+  const [meetingDetail, setMeetingDetail] = useState<MeetingDetail | null>(null);
+  const [liveSegments, setLiveSegments] = useState<LiveSegmentEvent[]>([]);
+  const [transcriptContent, setTranscriptContent] = useState<string | null>(null);
+  const [summaryContent, setSummaryContent] = useState<SummaryContent | null>(null);
   const [summaryStatus, setSummaryStatus] = useState<DocStatus>("idle");
   const [transcriptStatus, setTranscriptStatus] = useState<DocStatus>("idle");
+  const [summaryDownloaded, setSummaryDownloaded] = useState(false);
+  const [transcriptDownloaded, setTranscriptDownloaded] = useState(false);
   const [travelStartTop, setTravelStartTop] = useState<number | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [isDark, setIsDark] = useState(false);
@@ -92,7 +134,10 @@ function Index() {
   const [introReady, setIntroReady] = useState(false);
   const [introStarted, setIntroStarted] = useState(false);
   const [introPlacement, setIntroPlacement] = useState<IntroPlacement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const audioStreamRef = useRef<LiveAudioStream | null>(null);
+  const pendingTranscriptDownloadRef = useRef(false);
+  const pendingSummaryDownloadRef = useRef(false);
+  const transcriptScrollRef = useRef<HTMLDivElement>(null);
   const readyMascotRef = useRef<HTMLImageElement>(null);
   const readyShadowRef = useRef<HTMLSpanElement>(null);
   const headerLogoRef = useRef<HTMLImageElement>(null);
@@ -102,6 +147,50 @@ function Index() {
   const openingNameRef = useRef<HTMLParagraphElement>(null);
   const openingAssistantRef = useRef<HTMLParagraphElement>(null);
   const openingPoweredRef = useRef<HTMLParagraphElement>(null);
+  const selectedLanguage = meetingLanguages.find((option) => option.value === language) ?? meetingLanguages[0]!;
+
+  function startIntro() {
+    const sourceLogo = openingLogoRef.current?.getBoundingClientRect();
+    const sourceName = openingNameRef.current?.getBoundingClientRect();
+    const sourceAssistant = openingAssistantRef.current?.getBoundingClientRect();
+    const sourcePowered = openingPoweredRef.current?.getBoundingClientRect();
+    const targetLogo = headerLogoRef.current?.getBoundingClientRect();
+    const targetName = headerNameRef.current?.getBoundingClientRect();
+    const targetAssistant = headerAssistantRef.current?.getBoundingClientRect();
+
+    if (!sourceLogo || !sourceName || !sourceAssistant || !sourcePowered || !targetLogo || !targetName || !targetAssistant) {
+      setIntroStarted(true);
+      return;
+    }
+
+    const delta = (source: DOMRect, target: DOMRect) => ({
+      x: target.left - source.left,
+      y: target.top - source.top,
+      scale: target.width / source.width,
+    });
+    const logo = delta(sourceLogo, targetLogo);
+    const name = { ...delta(sourceName, targetName), scale: 1 };
+    const assistant = { ...delta(sourceAssistant, targetAssistant), scale: 1 };
+    const powered = delta(sourcePowered, targetAssistant);
+
+    setIntroPlacement((current) => current && ({
+      ...current,
+      '--intro-logo-dx': `${logo.x}px`,
+      '--intro-logo-dy': `${logo.y}px`,
+      '--intro-logo-scale': `${logo.scale}`,
+      '--intro-name-dx': `${name.x}px`,
+      '--intro-name-dy': `${name.y}px`,
+      '--intro-name-scale': `${name.scale}`,
+      '--intro-assistant-dx': `${assistant.x}px`,
+      '--intro-assistant-dy': `${assistant.y}px`,
+      '--intro-assistant-scale': `${assistant.scale}`,
+      '--intro-powered-dx': `${powered.x}px`,
+      '--intro-powered-dy': `${powered.y}px`,
+    }));
+
+    // Yeni hedef koordinatları DOM'a uygulandıktan sonra animasyonu başlat.
+    window.requestAnimationFrame(() => setIntroStarted(true));
+  }
 
   useLayoutEffect(() => {
     const placeIntro = () => {
@@ -110,7 +199,10 @@ function Index() {
       if (!target || !targetShadow || target.width === 0) return;
 
       const startWidth = Math.min(window.innerWidth * 0.34, 170);
-      const startLeft = (window.innerWidth - startWidth) / 2;
+      // Oturan maskotu logonun üzerinde optik olarak ortala: görselin sol
+      // elindeki saydam boşluk nedeniyle geometrik merkez biraz solda kalıyor.
+      const startHorizontalOffset = Math.min(24, startWidth * 0.135);
+      const startLeft = (window.innerWidth - startWidth) / 2 + startHorizontalOffset;
       const startTop = Math.max(18, window.innerHeight * 0.055);
       const startScale = startWidth / target.width;
       const footX = target.width * (650 / 1024);
@@ -193,7 +285,7 @@ function Index() {
         scale: target.width / source.width,
       });
       const logo = delta(sourceLogo, targetLogo);
-      // DEFT3R yazısı ve "Toplantı asistanı" etiketi, açılış ekranında da
+      // T3AI DEFTER yazısı ve "Toplantı asistanı" etiketi, açılış ekranında da
       // header'daki gerçek boyutlarıyla (paylaşılan CSS kuralı sayesinde)
       // birebir aynı font-size'da render ediliyor — bu yüzden scale'i
       // ölçülen (piksel gürültüsü içerebilen) orana değil, sabit 1'e
@@ -312,54 +404,244 @@ function Index() {
     preloadVideo.preload = "auto";
     preloadVideo.src = writingVideo;
     preloadVideo.load();
+    const preloadSleepingMascot = new Image();
+    preloadSleepingMascot.src = sleepingMascot;
   }, []);
 
   useEffect(() => {
     if (state !== "meeting" || isPaused) return;
     const timer = window.setInterval(() => setSeconds((value) => value + 1), 1000);
-    const bubbles = window.setInterval(
-      () => setVisibleMessages((value) => Math.min(value + 1, conversation.length)),
-      1900,
-    );
-    return () => {
-      window.clearInterval(timer);
-      window.clearInterval(bubbles);
-    };
+    return () => window.clearInterval(timer);
   }, [state, isPaused]);
 
-  useEffect(() => () => streamRef.current?.getTracks().forEach((track) => track.stop()), []);
+  // Yeni/güncellenen segment geldiğinde sohbet alanını otomatik en alta
+  // kaydır — gerçek scroll açık olduğu için bunu elle yapmazsak kullanıcı
+  // her mesajda manuel aşağı kaydırmak zorunda kalır.
+  useEffect(() => {
+    transcriptScrollRef.current?.scrollTo({ top: transcriptScrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [liveSegments]);
+
+  useEffect(() => () => audioStreamRef.current?.stop(), []);
+
+  // Sonuç ekranı, uzun süren bir işlem sırasında sayfa yenilense bile toplantı
+  // kimliğiyle tekrar açılabilsin. Örnek: /?meeting=88
+  useEffect(() => {
+    const rawMeetingId = new URLSearchParams(window.location.search).get('meeting');
+    if (!rawMeetingId) return;
+    const recoveredMeetingId = Number(rawMeetingId);
+    if (!Number.isSafeInteger(recoveredMeetingId) || recoveredMeetingId <= 0) return;
+    setMeetingId(recoveredMeetingId);
+    setState('summary');
+    setIntroVisible(false);
+    setSummaryStatus('idle');
+    setTranscriptStatus('idle');
+  }, []);
+
+  // Toplantı bitince transkript ve özet arka planda otomatik hazırlanmaya
+  // başlıyor (backend: kayıt durunca zincirleniyor). Burada durumu birkaç
+  // saniyede bir kontrol edip hazır olan içerikleri anında yakalıyoruz —
+  // kullanıcı butona basmadan önce her şey zaten hazırlanmış olabiliyor.
+  useEffect(() => {
+    if (state !== "summary" || meetingId === null) return;
+    let cancelled = false;
+    let timeoutId = 0;
+    let haveTranscript = false;
+    let haveSummary = false;
+    let attempts = 0;
+
+    const transcriptReadyStatuses: MeetingStatus[] = [
+      "refined",
+      "summarizing",
+      "summary_pending",
+      "summarized",
+      "summary_failed",
+    ];
+
+    async function poll() {
+      attempts += 1;
+      try {
+        const meeting = await getMeeting(meetingId!);
+        if (cancelled) return;
+        setMeetingDetail(meeting);
+
+        if (!haveTranscript && transcriptReadyStatuses.includes(meeting.status)) {
+          try {
+            const { transcript } = await getTranscript(meetingId!);
+            if (!cancelled) {
+              setTranscriptContent(transcript);
+              setTranscriptStatus("done");
+              haveTranscript = true;
+              // Kullanıcı hazır olmadan "indir"e bastıysa, tekrar tıklamasını
+              // beklemeden hazır olur olmaz otomatik indir.
+              if (pendingTranscriptDownloadRef.current) {
+                pendingTranscriptDownloadRef.current = false;
+                await downloadTranscriptPdf(transcript, meeting);
+                setTranscriptDownloaded(true);
+              }
+            }
+          } catch {
+            // Backend henüz dosyayı yazmamış olabilir, bir sonraki turda tekrar denenir.
+          }
+        }
+        if (meeting.status === "refine_failed" && !cancelled) {
+          setTranscriptStatus("error");
+          haveTranscript = true;
+          pendingTranscriptDownloadRef.current = false;
+        }
+
+        if (meeting.status === "summarized" && meeting.summary && !cancelled) {
+          setSummaryContent(meeting.summary);
+          setSummaryStatus("done");
+          haveSummary = true;
+          if (pendingSummaryDownloadRef.current) {
+            pendingSummaryDownloadRef.current = false;
+            await downloadSummaryPdf(meeting.summary, meeting);
+            setSummaryDownloaded(true);
+          }
+        } else if (meeting.status === "summary_failed" && !cancelled) {
+          setSummaryStatus("error");
+          haveSummary = true;
+          pendingSummaryDownloadRef.current = false;
+        }
+
+        if (!cancelled && !(haveTranscript && haveSummary)) {
+          // Uzun toplantıların offline Whisper/Pyannote işlemi beş dakikayı
+          // aşabilir. İlk beş dakika hızlı, sonrasında daha seyrek kontrol et;
+          // içerikler hazır olana kadar polling'i tamamen bırakma.
+          const delayMs = attempts < 100 ? 3000 : 10000;
+          timeoutId = window.setTimeout(poll, delayMs);
+        }
+      } catch {
+        if (!cancelled) {
+          const delayMs = attempts < 100 ? 3000 : 10000;
+          timeoutId = window.setTimeout(poll, delayMs);
+        }
+      }
+    }
+
+    void poll();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [state, meetingId]);
+
+  async function beginLiveAudio(id: number) {
+    try {
+      const { token } = await requestWebSocketToken();
+      const stream = new LiveAudioStream();
+      audioStreamRef.current = stream;
+      await stream.start(getWebSocketUrl(id, token), {
+        onSegment: (event) => {
+          setLiveSegments((prev) => {
+            const index = prev.findIndex((item) => item.segment_id === event.segment_id);
+            if (index === -1) return [...prev, event];
+            if ((prev[index]!.revision ?? 0) > (event.revision ?? 0)) return prev;
+            const next = [...prev];
+            next[index] = event;
+            return next;
+          });
+        },
+        onError: (message) => setNotice(message),
+        onClose: () => {
+          if (audioStreamRef.current === stream) audioStreamRef.current = null;
+        },
+      });
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Mikrofon başlatılamadı.");
+    }
+  }
 
   async function startMeeting() {
     setNotice("");
     const rect = readyMascotRef.current?.getBoundingClientRect();
     setTravelStartTop(rect ? rect.top : null);
     try {
-      streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      setNotice("Mikrofon izni alınamadı. Demo sessiz modda devam ediyor.");
+      const { meeting_id } = await createMeeting(title.trim(), language);
+      await startRecording(meeting_id);
+      setMeetingId(meeting_id);
+      setLiveSegments([]);
+      setTranscriptContent(null);
+      setSummaryContent(null);
+      setSummaryDownloaded(false);
+      setTranscriptDownloaded(false);
+      setSeconds(0);
+      setIsPaused(false);
+      setState("meeting");
+      await beginLiveAudio(meeting_id);
+    } catch (error) {
+      setNotice(error instanceof ApiError ? error.message : "Toplantı başlatılamadı, bağlantıyı kontrol edin.");
     }
-    setSeconds(0);
-    setVisibleMessages(1);
-    setIsPaused(false);
-    setState("meeting");
   }
 
-  function endMeeting() {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    setVisibleMessages(conversation.length);
+  async function togglePause() {
+    const next = !isPaused;
+    setIsPaused(next);
+    if (next) {
+      audioStreamRef.current?.stop();
+      audioStreamRef.current = null;
+    } else if (meetingId !== null) {
+      await beginLiveAudio(meetingId);
+    }
+  }
+
+  async function endMeeting() {
+    audioStreamRef.current?.stop();
+    audioStreamRef.current = null;
     setIsPaused(false);
     setState("summary");
+    setSummaryStatus("idle");
+    setTranscriptStatus("idle");
+    setSummaryDownloaded(false);
+    setTranscriptDownloaded(false);
+    if (meetingId !== null) {
+      try {
+        // WebSocket kapandıktan sonra backend son kısa ses parçasını manifest'e
+        // yazıyor. Özellikle kısa/ardışık toplantılarda ilk stop isteği bu
+        // işlemden önce ulaşarak 409 dönebilir. Offline zinciri kuyruklanana
+        // kadar yalnızca bu geçici 409 durumunu kontrollü biçimde yeniden dene.
+        let queued = false;
+        let lastError: unknown;
+        for (let attempt = 0; attempt < 30 && !queued; attempt += 1) {
+          try {
+            await stopRecording(meetingId);
+            queued = true;
+          } catch (error) {
+            lastError = error;
+            if (!(error instanceof ApiError) || error.status !== 409 || attempt === 29) {
+              throw error;
+            }
+            await new Promise((resolve) => window.setTimeout(resolve, 1000));
+          }
+        }
+        if (!queued) throw lastError;
+      } catch (error) {
+        setNotice(error instanceof ApiError ? error.message : "Kayıt durdurulurken bir sorun oluştu.");
+      }
+    }
   }
 
-
   function reset() {
+    audioStreamRef.current?.stop();
+    audioStreamRef.current = null;
+    if (meetingId !== null) {
+      // En son adım: geçici ses dosyalarını temizle. Henüz hazır değilse
+      // (özet/transkript bitmediyse) backend 409 döner — göz ardı edilir.
+      void finishMeeting(meetingId).catch(() => {});
+    }
     setState("ready");
+    setLanguage("mixed");
+    setMeetingId(null);
+    setMeetingDetail(null);
+    setLiveSegments([]);
+    setTranscriptContent(null);
+    setSummaryContent(null);
     setSeconds(0);
-    setVisibleMessages(0);
     setNotice("");
     setSummaryStatus("idle");
     setTranscriptStatus("idle");
+    setSummaryDownloaded(false);
+    setTranscriptDownloaded(false);
     setIsPaused(false);
   }
 
@@ -368,70 +650,162 @@ function Index() {
   const time = `${minutesLabel}:${secondsLabel}`;
   const meetingName = title.trim() || "İsimsiz toplantı";
 
-  function download(fileName: string, content: string) {
-    const url = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-
   function slug() {
     return meetingName.toLocaleLowerCase("tr").replace(/[^a-z0-9ğüşiöç]+/gi, "-").replace(/^-|-$/g, "") || "toplanti";
   }
 
-  function prepareSummary() {
-    if (summaryStatus === "working") return;
-    setSummaryStatus("working");
-    window.setTimeout(() => {
-      download(
-        `${slug()}-ozet.txt`,
-        [
-          `${meetingName} — Toplantı Özeti`,
-          `Süre: ${time}`,
-          "",
-          "Özet:",
-          "Ekip, bu haftanın ana odağını kullanıcı testleri olarak belirledi. Test sonuçları cuma sabahı paylaşılacak.",
-          "",
-          "Yapılacaklar:",
-          "- Kullanıcı testlerini tamamla",
-          "- Bulguları ekiple paylaş",
-        ].join("\n"),
-      );
-      setSummaryStatus("done");
-    }, 2200);
+  function dateStamp(detail = meetingDetail) {
+    const meetingDate = detail?.date ? new Date(detail.date) : new Date();
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Istanbul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(meetingDate);
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((item) => item.type === type)?.value ?? "";
+    return `${part("year")}-${part("month")}-${part("day")}`;
   }
 
-  function prepareTranscript() {
-    if (transcriptStatus === "working") return;
+  function pdfMetadata(detail = meetingDetail): MeetingPdfMetadata {
+    const timeZone = "Europe/Istanbul";
+    const startedAt = detail?.date ? new Date(detail.date) : new Date();
+    const durationSec = detail?.duration_sec ?? seconds;
+    const endedAt = new Date(startedAt.getTime() + durationSec * 1000);
+    const dateFormatter = new Intl.DateTimeFormat("tr-TR", {
+      timeZone,
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+    const timeFormatter = new Intl.DateTimeFormat("tr-TR", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    });
+    const durationHours = String(Math.floor(durationSec / 3600)).padStart(2, "0");
+    const durationMinutes = String(Math.floor((durationSec % 3600) / 60)).padStart(2, "0");
+    const durationSeconds = String(Math.floor(durationSec % 60)).padStart(2, "0");
+    return {
+      meetingName: detail?.title?.trim() || meetingName,
+      date: dateFormatter.format(startedAt),
+      startTime: timeFormatter.format(startedAt),
+      endTime: timeFormatter.format(endedAt),
+      duration: `${durationHours}:${durationMinutes}:${durationSeconds}`,
+      timeZone: "İstanbul (UTC+3)",
+    };
+  }
+
+  async function downloadTranscriptPdf(transcript: string, detail = meetingDetail) {
+    await downloadMeetingPdf({
+      fileName: `${slug()}-${dateStamp(detail)}-transkript.pdf`,
+      documentTitle: "Toplantı Dökümü",
+      sectionTitle: "Konuşma Dökümü",
+      metadata: pdfMetadata(detail),
+      body: transcript,
+      kind: "transcript",
+    });
+  }
+
+  async function downloadSummaryPdf(summary: SummaryContent, detail = meetingDetail) {
+    await downloadMeetingPdf({
+      fileName: `${slug()}-${dateStamp(detail)}-ozet.pdf`,
+      documentTitle: "Toplantı Özeti",
+      sectionTitle: "",
+      metadata: pdfMetadata(detail),
+      body: summary.summary_md,
+      kind: "summary",
+    });
+  }
+
+  async function prepareSummary() {
+    if (summaryContent) {
+      await downloadSummaryPdf(summaryContent);
+      setSummaryDownloaded(true);
+      return;
+    }
+    if (!meetingId || summaryStatus === "working") return;
+    setNotice("");
+    setSummaryStatus("working");
+    try {
+      const meeting = await getMeeting(meetingId);
+      let result: SummaryContent | null = meeting.status === "summarized" ? meeting.summary : null;
+
+      // Arka plandaki otomatik özet daha önce başarısız olduysa bu tıklama
+      // gerçek bir yeniden deneme işlevi görür. Devam eden işlemle yarışmamak
+      // için diğer durumlarda yeni özet isteği başlatılmaz.
+      if (!result && meeting.status === "summary_failed") {
+        result = await postSummary(meetingId);
+      }
+
+      if (!result) {
+        // Henüz hazır değil; arka plan işlemi bitince poll efekti otomatik
+        // indirmeyi tetikleyecek, kullanıcının tekrar tıklaması gerekmeyecek.
+        pendingSummaryDownloadRef.current = true;
+        setNotice("Toplantı özeti arka planda hazırlanıyor, hazır olunca otomatik inecek.");
+        return;
+      }
+      setSummaryContent(result);
+      setSummaryStatus("done");
+      await downloadSummaryPdf(result, meeting);
+      setSummaryDownloaded(true);
+    } catch (error) {
+      pendingSummaryDownloadRef.current = false;
+      setSummaryStatus("error");
+      setNotice(error instanceof ApiError ? error.message : "Özet alınamadı.");
+    }
+  }
+
+  async function prepareTranscript() {
+    if (transcriptContent) {
+      await downloadTranscriptPdf(transcriptContent);
+      setTranscriptDownloaded(true);
+      return;
+    }
+    if (!meetingId || transcriptStatus === "working") return;
+    setNotice("");
     setTranscriptStatus("working");
-    window.setTimeout(() => {
-      download(
-        `${slug()}-transkript.txt`,
-        [`${meetingName} — Toplantı Transkripti`, `Süre: ${time}`, "", ...conversation.map((m) => `[${m.time}] ${m.name}: ${m.text}`)].join("\n"),
-      );
+    try {
+      const { transcript } = await getTranscript(meetingId);
+      setTranscriptContent(transcript);
       setTranscriptStatus("done");
-    }, 2200);
+      await downloadTranscriptPdf(transcript);
+      setTranscriptDownloaded(true);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        // Henüz hazır değil; arka plan işlemi bitince poll efekti otomatik
+        // indirmeyi tetikleyecek, kullanıcının tekrar tıklaması gerekmeyecek.
+        pendingTranscriptDownloadRef.current = true;
+        setNotice("Toplantı dökümü arka planda hazırlanıyor, hazır olunca otomatik inecek.");
+        return;
+      }
+      pendingTranscriptDownloadRef.current = false;
+      setTranscriptStatus("error");
+      setNotice(error instanceof ApiError ? error.message : "Transkript alınamadı.");
+    }
   }
 
   return (
-    <main className={cn("relative h-screen overflow-hidden bg-background text-foreground", introVisible && "intro-active", introVisible && introStarted && "intro-ready")}>
+    <main className={cn("app-shell relative flex h-screen flex-col overflow-hidden bg-background text-foreground", state === "ready" && "ready-shell", introVisible && "intro-active", introVisible && introStarted && "intro-ready")}>
       <div aria-hidden="true" className="paper-surface absolute inset-0" />
       <div aria-hidden="true" className="paper-grid absolute inset-0" />
       <header className={cn("app-header relative z-20 mx-auto flex w-full max-w-6xl items-center justify-end px-5 py-5 sm:px-8", state !== "meeting" && "brand-hero")}>
-        <button className="brand-badge" onClick={reset} aria-label="DEFT3R başlangıç ekranı">
+        <button className="brand-badge" onClick={reset} aria-label="T3AI DEFTER başlangıç ekranı">
           <span className="brand-badge-mascot">
-            <span className="mascot-look block h-full w-full">
-              <img src={mascot} alt="" width={1024} height={1024} className="block h-full w-full object-contain" />
-              <img src={blinkMascot} alt="" aria-hidden="true" width={1024} height={1024} className="mascot-blink absolute inset-0 h-full w-full object-contain" />
-            </span>
+            {state === "meeting" ? (
+              <img src="/media/deft3r-meeting-header-mascot.png" alt="" className="block h-full w-full object-contain" />
+            ) : (
+              <span className="mascot-look block h-full w-full">
+                <img src={mascot} alt="" width={1024} height={1024} className="block h-full w-full object-contain" />
+                <img src={blinkMascot} alt="" aria-hidden="true" width={1024} height={1024} className="mascot-blink absolute inset-0 h-full w-full object-contain" />
+              </span>
+            )}
           </span>
           <img ref={headerLogoRef} src="/media/teb-ai-mark.png" alt="TEB AI logosu" className="brand-badge-teb object-contain" />
           <div className="brand-badge-text text-left leading-none">
-            <p ref={headerNameRef} className="brand-wordmark brand-badge-word" aria-label="DEFT3R">DEFT3R</p>
+            <p ref={headerNameRef} className="brand-wordmark brand-badge-word" aria-label="T3AI DEFTER">T3AI DEFTER</p>
             <p ref={headerAssistantRef} className="brand-badge-tag mt-1 font-semibold uppercase text-muted-foreground">Toplantı asistanı</p>
           </div>
         </button>
@@ -446,7 +820,7 @@ function Index() {
                 <span key={secondsLabel} className="timer-seconds-tick">{secondsLabel}</span>
               </span>
             </time>
-            <Button variant="quiet" size="sm" className="meeting-toolbar-btn rounded-full ring-1 ring-border" onClick={() => setIsPaused((value) => !value)}>
+            <Button variant="quiet" size="sm" className="meeting-toolbar-btn rounded-full ring-1 ring-border" onClick={() => void togglePause()}>
               {isPaused ? (<><Play className="size-4 fill-current" /> Devam Et</>) : (<><Pause className="size-4" /> Kaydı Durdur</>)}
             </Button>
             <Button variant="danger" size="sm" className="meeting-toolbar-btn meeting-toolbar-btn-danger rounded-full" onClick={endMeeting}><CircleStop className="size-4" /> Bitir</Button>
@@ -467,7 +841,7 @@ function Index() {
         </button>
       </header>
 
-      <section className="relative z-10 mx-auto flex min-h-[calc(100vh-84px)] max-w-5xl flex-col px-5 pb-8 sm:px-8">
+      <section className="relative z-10 mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-5 pb-8 sm:px-8">
         {state === "ready" && (
           <div className="ready-stage relative mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center text-center">
             <div className={cn("mascot-enter relative", !introVisible && "intro-played")}>
@@ -489,7 +863,43 @@ function Index() {
             <div className="ready-paper-weight paper-weight" aria-hidden="true" />
             <div className="ready-meeting-card notebook-inset mt-6 w-full">
               <label htmlFor="meeting-title" className="sr-only">Toplantı adı</label>
-              <textarea id="meeting-title" value={title} onChange={(event) => setTitle(event.target.value)} rows={2} placeholder="Toplantı adı" className="notebook-inset-field w-full resize-none px-4 py-3 text-sm outline-none placeholder:text-muted-foreground" />
+              <textarea id="meeting-title" value={title} onChange={(event) => setTitle(event.target.value)} rows={2} placeholder="Toplantı adı" className="notebook-inset-field w-full resize-none px-4 pb-1 pt-5 text-sm outline-none placeholder:text-muted-foreground" />
+              <div className={cn("language-picker mt-2", languageOpen && "is-open")}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="language-picker-trigger"
+                  aria-expanded={languageOpen}
+                  aria-controls="meeting-language-options"
+                  onClick={() => setLanguageOpen((open) => !open)}
+                >
+                  <span className="language-picker-copy">
+                    <span className="language-picker-label">Toplantı dili</span>
+                    <span className="language-picker-value">{selectedLanguage.name}</span>
+                  </span>
+                  <ChevronDown className="language-picker-chevron" aria-hidden="true" />
+                </Button>
+                <div id="meeting-language-options" className="language-options" role="listbox" aria-label="Toplantı dili">
+                  {meetingLanguages.map((option) => (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      role="option"
+                      aria-selected={language === option.value}
+                      className={cn("language-option", language === option.value && "is-selected")}
+                      onClick={() => {
+                        setLanguage(option.value);
+                        setLanguageOpen(false);
+                      }}
+                    >
+                      {option.value === "mixed" && <Sparkles className="size-3.5" aria-hidden="true" />}
+                      <span>{option.short}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
               <Button className="notebook-inset-action mt-2 w-full" onClick={startMeeting}><Play className="size-4 fill-current" /> Toplantıyı Başlat</Button>
             </div>
             {notice && <p className="mt-3 text-sm font-medium text-destructive">{notice}</p>}
@@ -501,19 +911,33 @@ function Index() {
             <div className="mx-auto mb-4 text-center">
               <h1 className="mt-1 font-display text-2xl font-bold sm:text-3xl">{title.trim() || "İsimsiz toplantı"}</h1>
             </div>
-            <div className="transcript-scroll mx-auto flex w-full max-w-3xl flex-1 flex-col justify-end overflow-y-hidden px-1 pb-5">
-              <div className="space-y-3">
-                {conversation.slice(0, visibleMessages).map((message, index) => (
-                  <article key={`${message.name}-${message.time}`} className={cn("speech-row bubble-in", index % 2 === 1 && "speech-row-alt")}>
-                    <div className={cn("avatar", `avatar-${message.tone}`)}>{message.initials}</div>
-                    <div className="speech-bubble">
-                      <div className="mb-1 flex items-center justify-between gap-6"><strong className="text-xs">{message.name}</strong><time className="text-[10px] text-muted-foreground">{message.time}</time></div>
-                      <p className="text-sm leading-relaxed">{message.text}</p>
-                    </div>
-                  </article>
-                ))}
+            <div ref={transcriptScrollRef} className="transcript-scroll mx-auto flex w-full max-w-3xl flex-1 flex-col overflow-y-auto px-1 pb-5">
+              <div className="mt-auto space-y-3">
+                {liveSegments.map((segment) => {
+                  const { tone, initials, number } = speakerVisual(segment.speaker_label);
+                  return (
+                    <article
+                      key={segment.segment_id}
+                      className={cn(
+                        "speech-row bubble-in",
+                        number % 2 === 0 && "speech-row-alt",
+                        segment.status === "provisional" && "opacity-70",
+                      )}
+                    >
+                      <div className={cn("avatar", `avatar-${tone}`)}>{initials}</div>
+                      <div className="speech-bubble">
+                        <div className="mb-1 flex items-center justify-between gap-6">
+                          <strong className="text-xs">{segment.speaker_label}</strong>
+                          {segment.status === "provisional" && <span className="text-[10px] text-muted-foreground">yazıyor…</span>}
+                        </div>
+                        <p className="text-sm leading-relaxed">{segment.text}</p>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             </div>
+            <div className="transcript-bottom-blur" aria-hidden="true" />
             <MeetingMascot startTop={travelStartTop} isPaused={isPaused} />
             {notice && <p className="mt-2 text-center text-xs font-medium text-destructive">{notice}</p>}
           </div>
@@ -522,7 +946,7 @@ function Index() {
 
         {state === "summary" && (
           <div className="summary-stage mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center">
-            <div className="sleepy-mascot" role="img" aria-label="Yere oturmuş uyuyan DEFT3R maskotu">
+            <div className="sleepy-mascot" role="img" aria-label="Yere oturmuş uyuyan T3AI DEFTER maskotu">
               <span className="sleepy-z sleepy-z-1" aria-hidden="true">z</span>
               <span className="sleepy-z sleepy-z-2" aria-hidden="true">z</span>
               <span className="sleepy-z sleepy-z-3" aria-hidden="true">Z</span>
@@ -536,22 +960,24 @@ function Index() {
             <div className="mt-6 grid w-full gap-3 sm:grid-cols-2" aria-live="polite">
               <Button
                 className="doc-action w-full"
-                onClick={prepareSummary}
+                onClick={() => void prepareSummary()}
                 disabled={summaryStatus === "working"}
               >
                 {summaryStatus === "working" ? (<><Loader2 className="size-4 animate-spin" /> Toplantı özeti hazırlanıyor...</>)
-                  : summaryStatus === "done" ? (<><Check className="size-4" /> Özet indirildi · tekrar al</>)
-                  : (<><FileText className="size-4" /> Toplantı özeti al</>)}
+                  : summaryStatus === "error" ? (<><FileText className="size-4" /> Tekrar dene</>)
+                  : summaryDownloaded ? (<><Check className="size-4" /> Özet indirildi · tekrar indir</>)
+                  : (<><FileText className="size-4" /> Toplantı özetini PDF indir</>)}
               </Button>
               <Button
                 variant="quiet"
                 className="doc-action w-full"
-                onClick={prepareTranscript}
+                onClick={() => void prepareTranscript()}
                 disabled={transcriptStatus === "working"}
               >
                 {transcriptStatus === "working" ? (<><Loader2 className="size-4 animate-spin" /> Toplantı dökümü hazırlanıyor...</>)
-                  : transcriptStatus === "done" ? (<><Check className="size-4" /> Toplantı dökümü indirildi · tekrar al</>)
-                  : (<><Download className="size-4" /> Toplantı dökümünü indir</>)}
+                  : transcriptStatus === "error" ? (<><Download className="size-4" /> Tekrar dene</>)
+                  : transcriptDownloaded ? (<><Check className="size-4" /> Döküm indirildi · tekrar indir</>)
+                  : (<><Download className="size-4" /> Toplantı dökümünü PDF indir</>)}
               </Button>
             </div>
 
@@ -565,12 +991,14 @@ function Index() {
         <div className={cn("opening-screen", introReady && "is-ready", introStarted && "is-started")}>
           <div className="opening-brand-lockup" style={introPlacement ?? undefined} aria-hidden="true">
             <img ref={openingLogoRef} src="/media/teb-ai-mark.png" alt="" className="opening-logo" />
-            <p ref={openingNameRef} className="brand-wordmark opening-brand-name">DEFT3R</p>
+            <p ref={openingNameRef} className="brand-wordmark opening-brand-name">T3AI DEFTER</p>
             <p ref={openingAssistantRef} className="opening-brand-assistant">Toplantı asistanı</p>
-            <p ref={openingPoweredRef} className="opening-brand-powered">made with pure hate ❤️ </p>
+          </div>
+          <div className="opening-start-credit-wrap">
+            <p ref={openingPoweredRef} className="opening-brand-powered" aria-label="T3AI tarafından geliştirildi"><span className="opening-heart-light" aria-hidden="true">🤎</span><span className="opening-heart-dark" aria-hidden="true">🤍</span></p>
           </div>
           {introReady && !introStarted && (
-            <button type="button" className="opening-start-btn" onClick={() => setIntroStarted(true)}>
+            <button type="button" className="opening-start-btn" onClick={startIntro}>
               <Play className="size-4 fill-current" /> Başla
             </button>
           )}
@@ -602,7 +1030,7 @@ function Index() {
 
 function MeetingMascot({ startTop, isPaused }: { startTop: number | null; isPaused: boolean }) {
   return (
-    <div className="meeting-mascot" role="img" aria-label="Açılıp toplantı notlarını yazan DEFT3R maskotu">
+    <div className="meeting-mascot" role="img" aria-label="Açılıp toplantı notlarını yazan T3AI DEFTER maskotu">
       <ChromaKeyVideo
         src={writingVideo}
         poster={mascot}
