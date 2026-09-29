@@ -246,15 +246,9 @@
   0%, 70% { transform: translate(0, 0) scale(1); animation-timing-function: cubic-bezier(.55,0,.85,.36); }
   96%, 100% { transform: translate(var(--intro-logo-dx), var(--intro-logo-dy)) scale(var(--intro-logo-scale)); }
 }
-@keyframes opening-name-land {
-  0%, 69.9% { text-align: center; transform: translate(0, 0) scale(1); }
-  70% { text-align: left; transform: translate(0, 0) scale(1); animation-timing-function: cubic-bezier(.55,0,.85,.36); }
-  96%, 100% { text-align: left; transform: translate(var(--intro-name-dx), var(--intro-name-dy)) scale(var(--intro-name-scale)); }
-}
-@keyframes opening-assistant-land {
-  0%, 69.9% { text-align: center; transform: translate(0, 0) scale(1); }
-  70% { text-align: left; transform: translate(0, 0) scale(1); animation-timing-function: cubic-bezier(.55,0,.85,.36); }
-  96%, 100% { text-align: left; transform: translate(var(--intro-assistant-dx), var(--intro-assistant-dy)) scale(var(--intro-assistant-scale)); }
+@keyframes opening-text-token-land {
+  0%, 70% { transform: translate(0, 0); animation-timing-function: cubic-bezier(.55,0,.85,.36); }
+  96%, 100% { transform: translate(var(--intro-token-dx), var(--intro-token-dy)); }
 }
 @keyframes opening-powered-exit {
   0%, 70% { opacity: 1; transform: translate(0, 0); animation-timing-function: cubic-bezier(.55,0,.85,.36); }
@@ -347,22 +341,44 @@
   will-change: transform;
 }
 .opening-brand-name {
-  width: 100%;
   margin-top: .45rem;
   font-size: 2rem;
   letter-spacing: 0;
   text-align: center;
+  /* Hareket dış kelime kabuklarında çalışır; yazının görsel efekti ise
+     header ile aynı brand-name-token katmanında kesintisiz devam eder. */
+}
+.brand-token-shell,
+.brand-name-token,
+.opening-text-token {
+  display: inline-block;
+}
+.brand-name-token {
+  color: var(--brand-foil-mid);
+  background-image: linear-gradient(105deg, var(--brand-foil-dark) 0%, var(--brand-foil-mid) 38%, var(--brand-foil-light) 48%, var(--brand-foil-mid) 58%, var(--brand-foil-dark) 100%);
+  background-size: 280% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 -.5px 0 oklch(0.35 0.05 60 / .16), 0 1px 1px oklch(1 0 0 / .4);
+  animation: foil-gleam 3.6s cubic-bezier(.77, 0, .175, 1) infinite;
+}
+.opening-text-token {
   transform-origin: top left;
-  will-change: transform;
-  /* Gerçek header yazısı kendi foil-gleam animasyonunu ayrı bir DOM
-     düğümünde, sayfa yüklendiği andan beri çalıştırıyor — geçiş anında
-     ikisi farklı fazda olup görünür bir "sıçrama" yaratabilir. Bu yüzden
-     açılıştaki kopyanın parıltısını sabit bir karede donduruyoruz. */
-  animation: none;
-  background-position: 115% 50%;
+}
+.opening-name-t3 {
+  --intro-token-dx: var(--intro-name-t3-dx);
+  --intro-token-dy: var(--intro-name-t3-dy);
+}
+.opening-name-defter {
+  --intro-token-dx: var(--intro-name-defter-dx);
+  --intro-token-dy: var(--intro-name-defter-dy);
+}
+.opening-assistant-token {
+  --intro-token-dx: var(--intro-assistant-dx);
+  --intro-token-dy: var(--intro-assistant-dy);
 }
 .opening-brand-assistant {
-  width: 100%;
   margin-top: .35rem;
   color: var(--muted-foreground);
   font-size: 12px;
@@ -371,8 +387,6 @@
   line-height: 1;
   text-align: center;
   text-transform: uppercase;
-  transform-origin: top left;
-  will-change: transform;
 }
 .opening-brand-powered {
   margin-top: .3rem;
@@ -433,8 +447,7 @@
 }
 .opening-screen.is-ready .opening-brand-lockup { opacity: 1; }
 .opening-screen.is-started .opening-logo { animation: opening-logo-land 3.84s linear both; }
-.opening-screen.is-started .opening-brand-name { animation: opening-name-land 3.84s linear both; }
-.opening-screen.is-started .opening-brand-assistant { animation: opening-assistant-land 3.84s linear both; }
+.opening-screen.is-started .opening-text-token { animation: opening-text-token-land 3.84s linear both; }
 .opening-screen.is-started .opening-brand-powered { animation: opening-powered-exit 3.84s linear both; }
 /* Butona basılana kadar maskot "oturma" pozunda sabit dursun — animasyonun
    kendisi ancak butona basılınca (is-started) oynuyor, ama 0% karesi zaten
@@ -491,14 +504,7 @@
   font-variant-numeric: lining-nums;
   line-height: 1;
   letter-spacing: .01em;
-  color: var(--brand-foil-mid);
-  background-image: linear-gradient(105deg, var(--brand-foil-dark) 0%, var(--brand-foil-mid) 38%, var(--brand-foil-light) 48%, var(--brand-foil-mid) 58%, var(--brand-foil-dark) 100%);
-  background-size: 280% 100%;
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: 0 -.5px 0 oklch(0.35 0.05 60 / .16), 0 1px 1px oklch(1 0 0 / .4);
-  animation: foil-gleam 3.6s cubic-bezier(.77, 0, .175, 1) infinite;
+  /* Paint only the inner token, identically in both screens. */
 }
 .mascot-enter { animation: mascot-enter .7s cubic-bezier(.2,.8,.2,1) both; filter: drop-shadow(0 18px 15px oklch(0.3 0.03 68 / .17)); }
 .mascot-bob { animation: mascot-bob 4.2s ease-in-out .8s infinite; }
@@ -911,7 +917,7 @@
 .brand-badge-mascot { position: relative; order: 3; width: 3.5rem; height: 3.5rem; flex: none; transition: width .7s cubic-bezier(.22, 1, .36, 1), height .7s cubic-bezier(.22, 1, .36, 1), opacity .5s, margin .7s cubic-bezier(.22, 1, .36, 1); }
 .app-header.brand-hero .brand-badge-mascot { order: 3; width: 0; height: 3.5rem; opacity: 0; margin-right: -.75rem; }
 .brand-badge-teb { order: 1; height: 2.7rem; flex: none; transition: height .7s cubic-bezier(.22, 1, .36, 1); }
-.app-header.brand-hero .brand-badge-teb { order: 1; height: 3.75rem; }
+.app-header.brand-hero .brand-badge-teb { order: 1; height: 4.5rem; }
 .brand-badge-text { order: 2; }
 .brand-badge-word { font-size: 1.55rem; letter-spacing: 0; transition: font-size .7s cubic-bezier(.22, 1, .36, 1); }
 .brand-badge-tag { font-size: 12px; letter-spacing: .08em; transition: font-size .7s cubic-bezier(.22, 1, .36, 1); }
@@ -934,7 +940,7 @@
   .app-header.brand-hero .brand-badge { left: calc(50% - 11rem); }
   .opening-brand-name,
   .app-header.brand-hero .brand-badge-word { font-size: 2.5rem; }
-  .app-header.brand-hero .brand-badge-teb { height: 4.5rem; }
+  .app-header.brand-hero .brand-badge-teb { height: 5.4rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -946,8 +952,7 @@
   .meeting-mascot-closed { display: none; }
   .meeting-mascot-open { transform: translate(-50%, 58%); opacity: 1; }
   .opening-screen.is-started .opening-logo,
-  .opening-screen.is-started .opening-brand-name,
-  .opening-screen.is-started .opening-brand-assistant,
+  .opening-screen.is-started .opening-text-token,
   .opening-screen.is-started .opening-brand-powered { animation-duration: .01ms; }
   .opening-screen.is-started .opening-jumping-mascot,
   .opening-screen.is-started .opening-jump-arc,
@@ -1090,7 +1095,7 @@
   box-shadow: 0 10px 24px var(--paper-shadow), inset 0 1px 0 oklch(1 0 0 / .08);
 }
 .dark .mascot-wave i { background: var(--card); }
-.dark .brand-wordmark {
+.dark .brand-name-token {
   color: var(--muted-foreground);
   background-image: linear-gradient(105deg, var(--muted-foreground) 0%, var(--muted-foreground) 39%, oklch(0.08 0.015 65 / .68) 49%, var(--muted-foreground) 59%, var(--muted-foreground) 100%);
   background-size: 280% 100%;
@@ -1099,10 +1104,6 @@
   -webkit-text-fill-color: transparent;
   text-shadow: 0 -.5px 0 oklch(0 0 0 / .32), 0 1px 1px oklch(1 0 0 / .1);
   animation: foil-gleam 3.6s cubic-bezier(.77, 0, .175, 1) infinite;
-}
-.dark .opening-brand-name {
-  animation: none;
-  background-position: 115% 50%;
 }
 .dark .sleepy-z { color: oklch(0.75 0.08 250); }
 .dark .avatar-coral { background: oklch(0.48 0.1 35); }

@@ -19,6 +19,13 @@ interface LiveAudioStreamCallbacks {
   onSegment: (event: LiveSegmentEvent) => void;
   onError?: (message: string) => void;
   onClose?: () => void;
+  onStatus?: (status: LiveAudioStatus) => void;
+}
+
+export interface LiveAudioStatus {
+  connection: "connecting" | "connected" | "closed";
+  microphone: "starting" | "listening" | "muted" | "stalled" | "stopped";
+  delivery: "waiting" | "confirmed" | "delayed";
 }
 
 function downsampleTo16k(input: Float32Array, inputRate: number): Float32Array {
@@ -75,24 +82,64 @@ export class LiveAudioStream {
   private audioContext: AudioContext | null = null;
   private micStream: MediaStream | null = null;
   private scriptNode: ScriptProcessorNode | null = null;
+  private statusTimer: ReturnType<typeof setInterval> | null = null;
+  private intentionalStop = false;
+  private paused = false;
+  private captureGeneration = 0;
+  private lastAudioAt = 0;
+  private lastAckAt = 0;
+  private startedAt = 0;
+  private lastPublishedStatus = "";
+  private callbacks: LiveAudioStreamCallbacks | null = null;
+
+  private publishStatus(): void {
+    const track = this.micStream?.getAudioTracks()[0];
+    const now = Date.now();
+    const status: LiveAudioStatus = {
+      connection: this.socket?.readyState === WebSocket.OPEN ? "connected" : this.socket?.readyState === WebSocket.CONNECTING ? "connecting" : "closed",
+      microphone: this.paused ? "stopped" : !track || !this.lastAudioAt ? "starting" : track.readyState === "ended" ? "stopped" : track.muted ? "muted" : this.audioContext?.state !== "running" || now - this.lastAudioAt > 3000 ? "stalled" : "listening",
+      delivery: this.paused ? "waiting" : this.lastAckAt && now - this.lastAckAt < 5000 ? "confirmed" : now - this.startedAt > 5000 ? "delayed" : "waiting",
+    };
+    const encoded = JSON.stringify(status);
+    if (encoded !== this.lastPublishedStatus) {
+      this.callbacks?.onStatus?.(status);
+      this.lastPublishedStatus = encoded;
+    }
+  }
 
   async start(wsUrl: string, callbacks: LiveAudioStreamCallbacks): Promise<void> {
+    this.callbacks = callbacks;
+    this.intentionalStop = false;
+    this.paused = false;
+    this.startedAt = Date.now();
+    this.lastAudioAt = 0;
+    this.lastAckAt = 0;
+    this.lastPublishedStatus = "";
     if (!window.isSecureContext && location.hostname !== "localhost") {
       throw new Error("Mikrofon erişimi için arayüz HTTPS üzerinden açılmalıdır.");
     }
 
     this.socket = new WebSocket(wsUrl);
+    this.statusTimer = setInterval(() => this.publishStatus(), 1000);
+    this.publishStatus();
 
     this.socket.onmessage = (event) => {
       try {
-        callbacks.onSegment(JSON.parse(event.data) as LiveSegmentEvent);
+        const payload = JSON.parse(event.data);
+        if (payload.type === "audio_status") { this.lastAckAt = Date.now(); this.publishStatus(); return; }
+        if (typeof payload.segment_id === "string" && typeof payload.text === "string") callbacks.onSegment(payload as LiveSegmentEvent);
       } catch {
         // Beklenmeyen mesaj formatı — sessizce atlanır.
       }
     };
     this.socket.onerror = () => callbacks.onError?.("Canlı bağlantı hatası.");
-    this.socket.onclose = () => {
+    this.socket.onclose = (event) => {
+      const intentional = this.intentionalStop;
       this.socket = null;
+      this.captureGeneration += 1;
+      this.releaseAudio();
+      callbacks.onStatus?.({ connection: "closed", microphone: "stopped", delivery: "waiting" });
+      if (!intentional) callbacks.onError?.(`Canlı bağlantı kesildi (kod ${event.code}). Ses sunucuya gönderilmiyor. Toplantıyı bitirip kaydedilen sesi döküme alabilirsiniz.`);
       callbacks.onClose?.();
     };
 
@@ -100,10 +147,37 @@ export class LiveAudioStream {
       if (!this.socket) return reject(new Error("Soket oluşturulamadı."));
       this.socket.onopen = () => resolve();
       this.socket.addEventListener("error", () => reject(new Error("WebSocket açılamadı.")), { once: true });
+      this.socket.addEventListener("close", () => reject(new Error("Canlı bağlantı açılmadan kapandı.")), { once: true });
     });
 
+    if (!this.paused && !this.intentionalStop) await this.startMicrophone();
+  }
+
+  isConnected(): boolean {
+    return this.socket?.readyState === WebSocket.OPEN;
+  }
+
+  pause(): void {
+    this.paused = true;
+    this.captureGeneration += 1;
+    this.releaseMicrophone();
+    this.publishStatus();
+  }
+
+  async resume(): Promise<void> {
+    if (!this.isConnected()) throw new Error("Canlı bağlantı kapandı; yeniden bağlanmak gerekiyor.");
+    if (!this.paused) return;
+    this.paused = false;
+    this.lastAudioAt = 0;
+    this.publishStatus();
+    await this.startMicrophone();
+  }
+
+  private async startMicrophone(): Promise<void> {
+    const generation = ++this.captureGeneration;
+    let micStream: MediaStream;
     try {
-      this.micStream = await navigator.mediaDevices.getUserMedia({
+      micStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           noiseSuppression: true,
           echoCancellation: true,
@@ -113,29 +187,62 @@ export class LiveAudioStream {
         },
       });
     } catch (error) {
-      this.socket?.close();
+      if (generation !== this.captureGeneration || this.paused || this.intentionalStop) return;
       throw new Error(error instanceof Error ? error.message : "Mikrofon başlatılamadı.");
     }
 
-    this.audioContext = new AudioContext();
-    if (this.audioContext.state === "suspended") {
-      await this.audioContext.resume();
+    // A pause or a newer resume can overtake the browser permission prompt.
+    if (generation !== this.captureGeneration || this.paused || this.intentionalStop) {
+      micStream.getTracks().forEach((track) => track.stop());
+      return;
     }
-    if (this.audioContext.state !== "running") {
-      this.stop();
+
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      micStream.getTracks().forEach((track) => track.stop());
+      throw new Error("Mikrofon açılırken bağlantı kesildi.");
+    }
+
+    let audioContext: AudioContext;
+    try {
+      audioContext = new AudioContext();
+    } catch (error) {
+      micStream.getTracks().forEach((track) => track.stop());
+      throw error;
+    }
+    try {
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
+    } catch (error) {
+      micStream.getTracks().forEach((track) => track.stop());
+      void audioContext.close();
+      if (generation !== this.captureGeneration || this.paused || this.intentionalStop) return;
+      throw error;
+    }
+    if (generation !== this.captureGeneration || this.paused || this.intentionalStop) {
+      micStream.getTracks().forEach((track) => track.stop());
+      void audioContext.close();
+      return;
+    }
+    if (audioContext.state !== "running") {
+      micStream.getTracks().forEach((track) => track.stop());
+      void audioContext.close();
       throw new Error(
         "Tarayıcı ses işlemeyi duraklattı. Sayfaya tıklayıp toplantıyı yeniden başlatın.",
       );
     }
-    const source = this.audioContext.createMediaStreamSource(this.micStream);
-    const boosted = createGainStage(this.audioContext, source);
-    this.scriptNode = this.audioContext.createScriptProcessor(4096, 1, 1);
+    this.micStream = micStream;
+    this.audioContext = audioContext;
+    const source = audioContext.createMediaStreamSource(micStream);
+    const boosted = createGainStage(audioContext, source);
+    this.scriptNode = audioContext.createScriptProcessor(4096, 1, 1);
     boosted.connect(this.scriptNode);
-    this.scriptNode.connect(this.audioContext.destination);
+    this.scriptNode.connect(audioContext.destination);
 
     this.scriptNode.onaudioprocess = (event) => {
-      if (!this.audioContext) return;
-      const input = downsampleTo16k(event.inputBuffer.getChannelData(0), this.audioContext.sampleRate);
+      if (this.paused || generation !== this.captureGeneration) return;
+      this.lastAudioAt = Date.now();
+      const input = downsampleTo16k(event.inputBuffer.getChannelData(0), audioContext.sampleRate);
       const pcm16 = new Int16Array(input.length);
       for (let i = 0; i < input.length; i++) {
         const clamped = Math.max(-1, Math.min(1, input[i]!));
@@ -146,13 +253,14 @@ export class LiveAudioStream {
         if (socket.bufferedAmount < 1024 * 1024) {
           socket.send(pcm16.buffer);
         } else {
-          callbacks.onError?.("Ağ ses akışına yetişemiyor; bağlantıyı kontrol edin.");
+          this.callbacks?.onError?.("Ağ ses akışına yetişemiyor; bağlantıyı kontrol edin.");
         }
       }
     };
+    this.publishStatus();
   }
 
-  stop(): void {
+  private releaseMicrophone(): void {
     if (this.scriptNode) {
       this.scriptNode.disconnect();
       this.scriptNode = null;
@@ -165,6 +273,19 @@ export class LiveAudioStream {
       this.micStream.getTracks().forEach((track) => track.stop());
       this.micStream = null;
     }
+  }
+
+  private releaseAudio(): void {
+    if (this.statusTimer) { clearInterval(this.statusTimer); this.statusTimer = null; }
+    this.releaseMicrophone();
+  }
+
+  stop(): void {
+    this.intentionalStop = true;
+    this.paused = false;
+    this.captureGeneration += 1;
+    this.releaseAudio();
+    this.callbacks?.onStatus?.({ connection: "closed", microphone: "stopped", delivery: "waiting" });
     if (this.socket) {
       this.socket.close();
       this.socket = null;

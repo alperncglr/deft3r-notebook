@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Check, ChevronDown, CircleStop, Download, FileText, Loader2, Moon, Pause, Play, RotateCcw, Sparkles, Sun } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type Ref } from "react";
 
 import { ChromaKeyVideo } from "@/components/chroma-key-video";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { LiveAudioStream, type LiveSegmentEvent } from "@/lib/liveAudioStream";
+import { LiveAudioStream, type LiveSegmentEvent, type LiveAudioStatus } from "@/lib/liveAudioStream";
 import { downloadMeetingPdf, type MeetingPdfMetadata } from "@/lib/meetingPdf";
 import {
   ApiError,
@@ -38,9 +38,9 @@ const writingVideo = "/media/deft3r-open-and-continuous-writing.mp4";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "T3AI DEFTER — Akıllı Toplantı Defteri" },
+      { title: "T3AI DEFT3R — Akıllı Toplantı Defteri" },
       { name: "description", content: "Toplantıları gerçek zamanlı yazıya döken ve özetleyen sevimli dijital defter." },
-      { property: "og:title", content: "T3AI DEFTER — Akıllı Toplantı Defteri" },
+      { property: "og:title", content: "T3AI DEFT3R — Akıllı Toplantı Defteri" },
       { property: "og:description", content: "Toplantıları gerçek zamanlı yazıya döken ve özetleyen sevimli dijital defter." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -74,12 +74,12 @@ type IntroPlacement = CSSProperties & {
   "--intro-logo-dx": string;
   "--intro-logo-dy": string;
   "--intro-logo-scale": string;
-  "--intro-name-dx": string;
-  "--intro-name-dy": string;
-  "--intro-name-scale": string;
+  "--intro-name-t3-dx": string;
+  "--intro-name-t3-dy": string;
+  "--intro-name-defter-dx": string;
+  "--intro-name-defter-dy": string;
   "--intro-assistant-dx": string;
   "--intro-assistant-dy": string;
-  "--intro-assistant-scale": string;
   "--intro-powered-dx": string;
   "--intro-powered-dy": string;
   "--intro-shadow-left": string;
@@ -102,13 +102,29 @@ const meetingLanguages: ReadonlyArray<{
   { value: "fr", short: "FR Français", name: "Fransızca" },
 ];
 
-// Backend konuşmacıları "Kullanıcı N" olarak etiketliyor (isim/kimlik
-// tutulmuyor); numaraya göre deterministik bir renk ve kısa etiket üretiyoruz.
+// Backend konuşmacıları "Kullanıcı N" olarak saklıyor. Görünümdeki ad farklı
+// olabilir; numara üzerinden aynı renk ve kısa etiketi koruyoruz.
+function displaySpeakerLabel(label: string): string {
+  return label.replace(/^Kullanıcı (?=\d+\b)/, "Katılımcı ");
+}
+
 function speakerVisual(label: string) {
   const match = label.match(/\d+/);
   const number = match ? Number(match[0]) : 1;
   const tone = AVATAR_TONES[(number - 1) % AVATAR_TONES.length]!;
   return { tone, initials: `K${number}`, number };
+}
+
+function BrandWord({ word, wordRef, className }: {
+  word: string;
+  wordRef: Ref<HTMLSpanElement>;
+  className?: string;
+}) {
+  return (
+    <span ref={wordRef} className={cn("brand-token-shell", className)}>
+      <span className="brand-name-token">{word}</span>
+    </span>
+  );
 }
 
 function Index() {
@@ -135,57 +151,81 @@ function Index() {
   const [introStarted, setIntroStarted] = useState(false);
   const [introPlacement, setIntroPlacement] = useState<IntroPlacement | null>(null);
   const audioStreamRef = useRef<LiveAudioStream | null>(null);
+  const audioAttemptRef = useRef(0);
+  const pausedRef = useRef(false);
+  const startingMeetingRef = useRef(false);
+  const pendingMeetingIdRef = useRef<number | null>(null);
+  const [isStartingMeeting, setIsStartingMeeting] = useState(false);
+  const [audioStatus, setAudioStatus] = useState<LiveAudioStatus>({ connection: "closed", microphone: "stopped", delivery: "waiting" });
   const pendingTranscriptDownloadRef = useRef(false);
   const pendingSummaryDownloadRef = useRef(false);
   const transcriptScrollRef = useRef<HTMLDivElement>(null);
   const readyMascotRef = useRef<HTMLImageElement>(null);
   const readyShadowRef = useRef<HTMLSpanElement>(null);
   const headerLogoRef = useRef<HTMLImageElement>(null);
-  const headerNameRef = useRef<HTMLParagraphElement>(null);
-  const headerAssistantRef = useRef<HTMLParagraphElement>(null);
+  const headerNameT3Ref = useRef<HTMLSpanElement>(null);
+  const headerNameDefterRef = useRef<HTMLSpanElement>(null);
+  const headerAssistantTextRef = useRef<HTMLSpanElement>(null);
   const openingLogoRef = useRef<HTMLImageElement>(null);
-  const openingNameRef = useRef<HTMLParagraphElement>(null);
-  const openingAssistantRef = useRef<HTMLParagraphElement>(null);
+  const openingNameT3Ref = useRef<HTMLSpanElement>(null);
+  const openingNameDefterRef = useRef<HTMLSpanElement>(null);
+  const openingAssistantTextRef = useRef<HTMLSpanElement>(null);
   const openingPoweredRef = useRef<HTMLParagraphElement>(null);
   const selectedLanguage = meetingLanguages.find((option) => option.value === language) ?? meetingLanguages[0]!;
 
-  function startIntro() {
+  function measureIntroBrandLanding() {
     const sourceLogo = openingLogoRef.current?.getBoundingClientRect();
-    const sourceName = openingNameRef.current?.getBoundingClientRect();
-    const sourceAssistant = openingAssistantRef.current?.getBoundingClientRect();
+    const sourceNameT3 = openingNameT3Ref.current?.getBoundingClientRect();
+    const sourceNameDefter = openingNameDefterRef.current?.getBoundingClientRect();
+    const sourceAssistant = openingAssistantTextRef.current?.getBoundingClientRect();
     const sourcePowered = openingPoweredRef.current?.getBoundingClientRect();
     const targetLogo = headerLogoRef.current?.getBoundingClientRect();
-    const targetName = headerNameRef.current?.getBoundingClientRect();
-    const targetAssistant = headerAssistantRef.current?.getBoundingClientRect();
+    const targetNameT3 = headerNameT3Ref.current?.getBoundingClientRect();
+    const targetNameDefter = headerNameDefterRef.current?.getBoundingClientRect();
+    const targetAssistant = headerAssistantTextRef.current?.getBoundingClientRect();
 
-    if (!sourceLogo || !sourceName || !sourceAssistant || !sourcePowered || !targetLogo || !targetName || !targetAssistant) {
+    if (!sourceLogo || !sourceNameT3 || !sourceNameDefter || !sourceAssistant || !sourcePowered || !targetLogo || !targetNameT3 || !targetNameDefter || !targetAssistant) {
+      return null;
+    }
+
+    const positionDelta = (source: DOMRect, target: DOMRect) => ({
+      x: target.left - source.left,
+      y: target.top - source.top,
+    });
+    const logo = {
+      ...positionDelta(sourceLogo, targetLogo),
+      scale: targetLogo.width / sourceLogo.width,
+    };
+    const nameT3 = positionDelta(sourceNameT3, targetNameT3);
+    const nameDefter = positionDelta(sourceNameDefter, targetNameDefter);
+    const assistant = positionDelta(sourceAssistant, targetAssistant);
+    const powered = positionDelta(sourcePowered, targetAssistant);
+
+    return {
+      "--intro-logo-dx": `${logo.x}px`,
+      "--intro-logo-dy": `${logo.y}px`,
+      "--intro-logo-scale": `${logo.scale}`,
+      "--intro-name-t3-dx": `${nameT3.x}px`,
+      "--intro-name-t3-dy": `${nameT3.y}px`,
+      "--intro-name-defter-dx": `${nameDefter.x}px`,
+      "--intro-name-defter-dy": `${nameDefter.y}px`,
+      "--intro-assistant-dx": `${assistant.x}px`,
+      "--intro-assistant-dy": `${assistant.y}px`,
+      "--intro-powered-dx": `${powered.x}px`,
+      "--intro-powered-dy": `${powered.y}px`,
+    } satisfies Partial<IntroPlacement>;
+  }
+
+  function startIntro() {
+    const brandLanding = measureIntroBrandLanding();
+    if (!brandLanding) {
       setIntroStarted(true);
       return;
     }
 
-    const delta = (source: DOMRect, target: DOMRect) => ({
-      x: target.left - source.left,
-      y: target.top - source.top,
-      scale: target.width / source.width,
-    });
-    const logo = delta(sourceLogo, targetLogo);
-    const name = { ...delta(sourceName, targetName), scale: 1 };
-    const assistant = { ...delta(sourceAssistant, targetAssistant), scale: 1 };
-    const powered = delta(sourcePowered, targetAssistant);
-
     setIntroPlacement((current) => current && ({
       ...current,
-      '--intro-logo-dx': `${logo.x}px`,
-      '--intro-logo-dy': `${logo.y}px`,
-      '--intro-logo-scale': `${logo.scale}`,
-      '--intro-name-dx': `${name.x}px`,
-      '--intro-name-dy': `${name.y}px`,
-      '--intro-name-scale': `${name.scale}`,
-      '--intro-assistant-dx': `${assistant.x}px`,
-      '--intro-assistant-dy': `${assistant.y}px`,
-      '--intro-assistant-scale': `${assistant.scale}`,
-      '--intro-powered-dx': `${powered.x}px`,
-      '--intro-powered-dy': `${powered.y}px`,
+      ...brandLanding,
     }));
 
     // Yeni hedef koordinatları DOM'a uygulandıktan sonra animasyonu başlat.
@@ -222,12 +262,12 @@ function Index() {
         "--intro-logo-dx": "0px",
         "--intro-logo-dy": "0px",
         "--intro-logo-scale": "1",
-        "--intro-name-dx": "0px",
-        "--intro-name-dy": "0px",
-        "--intro-name-scale": "1",
+        "--intro-name-t3-dx": "0px",
+        "--intro-name-t3-dy": "0px",
+        "--intro-name-defter-dx": "0px",
+        "--intro-name-defter-dy": "0px",
         "--intro-assistant-dx": "0px",
         "--intro-assistant-dy": "0px",
-        "--intro-assistant-scale": "1",
         "--intro-powered-dx": "0px",
         "--intro-powered-dy": "0px",
         "--intro-shadow-left": `${targetShadow.left}px`,
@@ -269,46 +309,14 @@ function Index() {
     if (!introPlacement || !introVisible || introReady) return;
 
     const frame = window.requestAnimationFrame(() => {
-      const sourceLogo = openingLogoRef.current?.getBoundingClientRect();
-      const sourceName = openingNameRef.current?.getBoundingClientRect();
-      const sourceAssistant = openingAssistantRef.current?.getBoundingClientRect();
-      const sourcePowered = openingPoweredRef.current?.getBoundingClientRect();
-      const targetLogo = headerLogoRef.current?.getBoundingClientRect();
-      const targetName = headerNameRef.current?.getBoundingClientRect();
-      const targetAssistant = headerAssistantRef.current?.getBoundingClientRect();
+      const brandLanding = measureIntroBrandLanding();
+      if (!brandLanding) return;
 
-      if (!sourceLogo || !sourceName || !sourceAssistant || !sourcePowered || !targetLogo || !targetName || !targetAssistant) return;
-
-      const delta = (source: DOMRect, target: DOMRect) => ({
-        x: target.left - source.left,
-        y: target.top - source.top,
-        scale: target.width / source.width,
-      });
-      const logo = delta(sourceLogo, targetLogo);
-      // T3AI DEFTER yazısı ve "Toplantı asistanı" etiketi, açılış ekranında da
-      // header'daki gerçek boyutlarıyla (paylaşılan CSS kuralı sayesinde)
-      // birebir aynı font-size'da render ediliyor — bu yüzden scale'i
-      // ölçülen (piksel gürültüsü içerebilen) orana değil, sabit 1'e
-      // sabitliyoruz; sadece konum (dx/dy) değişiyor. Aksi halde metne
-      // uygulanan ufak bir scale, tam geçiş anında bulanıklaşmaya/"büyük
-      // kalma" hissine sebep oluyordu.
-      const name = { ...delta(sourceName, targetName), scale: 1 };
-      const assistant = { ...delta(sourceAssistant, targetAssistant), scale: 1 };
-      const powered = delta(sourcePowered, targetAssistant);
-
+      // Her metin parçası kendi başlangıç ve hedef piksel koordinatlarıyla
+      // eşleşir; animasyon sırasında hizalama modu değiştirilmez.
       setIntroPlacement((current) => current && ({
         ...current,
-        "--intro-logo-dx": `${logo.x}px`,
-        "--intro-logo-dy": `${logo.y}px`,
-        "--intro-logo-scale": `${logo.scale}`,
-        "--intro-name-dx": `${name.x}px`,
-        "--intro-name-dy": `${name.y}px`,
-        "--intro-name-scale": `${name.scale}`,
-        "--intro-assistant-dx": `${assistant.x}px`,
-        "--intro-assistant-dy": `${assistant.y}px`,
-        "--intro-assistant-scale": `${assistant.scale}`,
-        "--intro-powered-dx": `${powered.x}px`,
-        "--intro-powered-dy": `${powered.y}px`,
+        ...brandLanding,
       }));
       setIntroReady(true);
     });
@@ -421,7 +429,10 @@ function Index() {
     transcriptScrollRef.current?.scrollTo({ top: transcriptScrollRef.current.scrollHeight, behavior: "smooth" });
   }, [liveSegments]);
 
-  useEffect(() => () => audioStreamRef.current?.stop(), []);
+  useEffect(() => () => {
+    audioAttemptRef.current += 1;
+    audioStreamRef.current?.stop();
+  }, []);
 
   // Sonuç ekranı, uzun süren bir işlem sırasında sayfa yenilense bile toplantı
   // kimliğiyle tekrar açılabilsin. Örnek: /?meeting=88
@@ -527,12 +538,18 @@ function Index() {
   }, [state, meetingId]);
 
   async function beginLiveAudio(id: number) {
+    const attempt = ++audioAttemptRef.current;
+    setAudioStatus({ connection: "connecting", microphone: "starting", delivery: "waiting" });
+    let stream: LiveAudioStream | null = null;
     try {
       const { token } = await requestWebSocketToken();
-      const stream = new LiveAudioStream();
+      if (attempt !== audioAttemptRef.current) return;
+      stream = new LiveAudioStream();
       audioStreamRef.current = stream;
       await stream.start(getWebSocketUrl(id, token), {
+        onStatus: (status) => { if (audioStreamRef.current === stream && attempt === audioAttemptRef.current) setAudioStatus(status); },
         onSegment: (event) => {
+          if (attempt !== audioAttemptRef.current) return;
           setLiveSegments((prev) => {
             const index = prev.findIndex((item) => item.segment_id === event.segment_id);
             if (index === -1) return [...prev, event];
@@ -542,23 +559,47 @@ function Index() {
             return next;
           });
         },
-        onError: (message) => setNotice(message),
+        onError: (message) => { if (attempt === audioAttemptRef.current) setNotice(message); },
         onClose: () => {
           if (audioStreamRef.current === stream) audioStreamRef.current = null;
         },
       });
+      if (attempt !== audioAttemptRef.current) stream.stop();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Mikrofon başlatılamadı.");
+      stream?.stop();
+      if (attempt !== audioAttemptRef.current) return;
+      if (audioStreamRef.current === stream || stream === null) {
+        audioStreamRef.current = null;
+        setAudioStatus({ connection: "closed", microphone: "stopped", delivery: "waiting" });
+        setNotice(error instanceof Error ? error.message : "Mikrofon başlatılamadı.");
+      }
     }
   }
 
   async function startMeeting() {
+    if (startingMeetingRef.current) return;
+    startingMeetingRef.current = true;
+    setIsStartingMeeting(true);
     setNotice("");
     const rect = readyMascotRef.current?.getBoundingClientRect();
     setTravelStartTop(rect ? rect.top : null);
     try {
-      const { meeting_id } = await createMeeting(title.trim(), language);
-      await startRecording(meeting_id);
+      let meeting_id = pendingMeetingIdRef.current;
+      if (meeting_id === null) {
+        const created = await createMeeting(title.trim(), language);
+        meeting_id = created.meeting_id;
+        pendingMeetingIdRef.current = meeting_id;
+        setMeetingId(meeting_id);
+      }
+      try {
+        await startRecording(meeting_id);
+      } catch (error) {
+        // A lost HTTP response can mean recording actually started. Do not
+        // create another meeting on retry; confirm the existing one's state.
+        const detail = await getMeeting(meeting_id);
+        if (detail.status !== "recording") throw error;
+      }
+      pendingMeetingIdRef.current = null;
       setMeetingId(meeting_id);
       setLiveSegments([]);
       setTranscriptContent(null);
@@ -566,28 +607,53 @@ function Index() {
       setSummaryDownloaded(false);
       setTranscriptDownloaded(false);
       setSeconds(0);
+      pausedRef.current = false;
       setIsPaused(false);
       setState("meeting");
       await beginLiveAudio(meeting_id);
     } catch (error) {
       setNotice(error instanceof ApiError ? error.message : "Toplantı başlatılamadı, bağlantıyı kontrol edin.");
+    } finally {
+      startingMeetingRef.current = false;
+      setIsStartingMeeting(false);
     }
   }
 
   async function togglePause() {
-    const next = !isPaused;
+    const next = !pausedRef.current;
+    pausedRef.current = next;
     setIsPaused(next);
     if (next) {
-      audioStreamRef.current?.stop();
-      audioStreamRef.current = null;
+      // Keep the WebSocket and Diart session alive so speaker identities do
+      // not restart every time recording is paused within this meeting.
+      audioStreamRef.current?.pause();
     } else if (meetingId !== null) {
-      await beginLiveAudio(meetingId);
+      setNotice("");
+      const stream = audioStreamRef.current;
+      if (stream?.isConnected()) {
+        try {
+          await stream.resume();
+        } catch (error) {
+          pausedRef.current = true;
+          setIsPaused(true);
+          stream.pause();
+          setNotice(error instanceof Error ? error.message : "Mikrofon yeniden başlatılamadı.");
+        }
+      } else {
+        // A real network disconnect cannot preserve Diart's in-memory state.
+        stream?.stop();
+        if (audioStreamRef.current === stream) audioStreamRef.current = null;
+        setNotice("Canlı bağlantı koptu; yeniden bağlanırken konuşmacılar tekrar tanınabilir.");
+        await beginLiveAudio(meetingId);
+      }
     }
   }
 
   async function endMeeting() {
+    audioAttemptRef.current += 1;
     audioStreamRef.current?.stop();
     audioStreamRef.current = null;
+    pausedRef.current = false;
     setIsPaused(false);
     setState("summary");
     setSummaryStatus("idle");
@@ -622,8 +688,11 @@ function Index() {
   }
 
   function reset() {
+    audioAttemptRef.current += 1;
     audioStreamRef.current?.stop();
     audioStreamRef.current = null;
+    pausedRef.current = false;
+    pendingMeetingIdRef.current = null;
     if (meetingId !== null) {
       // En son adım: geçici ses dosyalarını temizle. Henüz hazır değilse
       // (özet/transkript bitmediyse) backend 409 döner — göz ardı edilir.
@@ -792,7 +861,7 @@ function Index() {
       <div aria-hidden="true" className="paper-surface absolute inset-0" />
       <div aria-hidden="true" className="paper-grid absolute inset-0" />
       <header className={cn("app-header relative z-20 mx-auto flex w-full max-w-6xl items-center justify-end px-5 py-5 sm:px-8", state !== "meeting" && "brand-hero")}>
-        <button className="brand-badge" onClick={reset} aria-label="T3AI DEFTER başlangıç ekranı">
+        <button className="brand-badge" onClick={reset} aria-label="T3AI DEFT3R başlangıç ekranı">
           <span className="brand-badge-mascot">
             {state === "meeting" ? (
               <img src="/media/deft3r-meeting-header-mascot.png" alt="" className="block h-full w-full object-contain" />
@@ -805,14 +874,19 @@ function Index() {
           </span>
           <img ref={headerLogoRef} src="/media/teb-ai-mark.png" alt="TEB AI logosu" className="brand-badge-teb object-contain" />
           <div className="brand-badge-text text-left leading-none">
-            <p ref={headerNameRef} className="brand-wordmark brand-badge-word" aria-label="T3AI DEFTER">T3AI DEFTER</p>
-            <p ref={headerAssistantRef} className="brand-badge-tag mt-1 font-semibold uppercase text-muted-foreground">Toplantı asistanı</p>
+            <p className="brand-wordmark brand-badge-word" aria-label="T3AI DEFT3R">
+              <BrandWord wordRef={headerNameT3Ref} word="T3AI" />{" "}
+              <BrandWord wordRef={headerNameDefterRef} word="DEFT3R" />
+            </p>
+            <p className="brand-badge-tag mt-1 font-semibold uppercase text-muted-foreground">
+              <span ref={headerAssistantTextRef}>Toplantı asistanı</span>
+            </p>
           </div>
         </button>
         {state === "meeting" && (
           <div className="flex items-center gap-3">
             <span className="hidden items-center gap-2 text-sm font-semibold sm:flex">
-              <i className={cn("listening-dot", isPaused && "listening-dot-paused")} /> {isPaused ? "Duraklatıldı" : "Dinliyor"}
+              <i className={cn("listening-dot", (isPaused || audioStatus.microphone !== "listening" || audioStatus.connection !== "connected") && "listening-dot-paused")} /> {isPaused ? "Duraklatıldı" : audioStatus.connection !== "connected" ? "Bağlantı yok" : audioStatus.microphone === "listening" ? "Mikrofon dinliyor" : "Ses akışı bekleniyor"}
             </span>
             <time className="font-mono text-sm font-semibold tabular-nums">
               {minutesLabel}:
@@ -840,6 +914,13 @@ function Index() {
           <span className="theme-toggle-thumb" aria-hidden="true" />
         </button>
       </header>
+
+      {state === "meeting" && <div role="status" className="relative z-10 mx-auto mb-3 flex w-full max-w-5xl flex-wrap gap-x-5 gap-y-1 px-5 text-xs text-muted-foreground sm:px-8">
+        <span>Toplantı #{meetingId}</span>
+        <span>{audioStatus.connection === "connected" ? "● Bağlantı kurulu" : audioStatus.connection === "connecting" ? "○ Bağlanıyor" : "○ Bağlantı kapalı"}</span>
+        <span>{isPaused ? "Mikrofon duraklatıldı" : audioStatus.microphone === "listening" ? "Mikrofon dinliyor" : audioStatus.microphone === "muted" ? "Mikrofon sessize alındı" : audioStatus.microphone === "stalled" ? "Mikrofon akışı durdu" : audioStatus.microphone === "starting" ? "Mikrofon açılıyor" : "Mikrofon kapalı"}</span>
+        <span>{audioStatus.connection !== "connected" ? "Ses gönderilmiyor" : audioStatus.delivery === "confirmed" ? "Sunucu sesi alıyor" : audioStatus.delivery === "delayed" ? "Sunucudan ses alındı onayı gecikiyor" : "Ses alındı onayı bekleniyor"}</span>
+      </div>}
 
       <section className="relative z-10 mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-5 pb-8 sm:px-8">
         {state === "ready" && (
@@ -900,7 +981,7 @@ function Index() {
                   ))}
                 </div>
               </div>
-              <Button className="notebook-inset-action mt-2 w-full" onClick={startMeeting}><Play className="size-4 fill-current" /> Toplantıyı Başlat</Button>
+              <Button className="notebook-inset-action mt-2 w-full" onClick={startMeeting} disabled={isStartingMeeting}><Play className="size-4 fill-current" /> {isStartingMeeting ? "Toplantı başlatılıyor…" : "Toplantıyı Başlat"}</Button>
             </div>
             {notice && <p className="mt-3 text-sm font-medium text-destructive">{notice}</p>}
           </div>
@@ -927,8 +1008,8 @@ function Index() {
                       <div className={cn("avatar", `avatar-${tone}`)}>{initials}</div>
                       <div className="speech-bubble">
                         <div className="mb-1 flex items-center justify-between gap-6">
-                          <strong className="text-xs">{segment.speaker_label}</strong>
-                          {segment.status === "provisional" && <span className="text-[10px] text-muted-foreground">yazıyor…</span>}
+                          <strong className="text-xs">{displaySpeakerLabel(segment.speaker_label)}</strong>
+                          {segment.status === "provisional" && <span className="text-[10px] text-muted-foreground">{!isPaused && audioStatus.connection === "connected" && audioStatus.delivery === "confirmed" && audioStatus.microphone === "listening" ? "yazıyor…" : "kesinleşmemiş metin"}</span>}
                         </div>
                         <p className="text-sm leading-relaxed">{segment.text}</p>
                       </div>
@@ -946,7 +1027,7 @@ function Index() {
 
         {state === "summary" && (
           <div className="summary-stage mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center">
-            <div className="sleepy-mascot" role="img" aria-label="Yere oturmuş uyuyan T3AI DEFTER maskotu">
+            <div className="sleepy-mascot" role="img" aria-label="Yere oturmuş uyuyan T3AI DEFT3R maskotu">
               <span className="sleepy-z sleepy-z-1" aria-hidden="true">z</span>
               <span className="sleepy-z sleepy-z-2" aria-hidden="true">z</span>
               <span className="sleepy-z sleepy-z-3" aria-hidden="true">Z</span>
@@ -991,8 +1072,13 @@ function Index() {
         <div className={cn("opening-screen", introReady && "is-ready", introStarted && "is-started")}>
           <div className="opening-brand-lockup" style={introPlacement ?? undefined} aria-hidden="true">
             <img ref={openingLogoRef} src="/media/teb-ai-mark.png" alt="" className="opening-logo" />
-            <p ref={openingNameRef} className="brand-wordmark opening-brand-name">T3AI DEFTER</p>
-            <p ref={openingAssistantRef} className="opening-brand-assistant">Toplantı asistanı</p>
+            <p className="brand-wordmark opening-brand-name" aria-label="T3AI DEFT3R">
+              <BrandWord wordRef={openingNameT3Ref} word="T3AI" className="opening-text-token opening-name-t3" />{" "}
+              <BrandWord wordRef={openingNameDefterRef} word="DEFT3R" className="opening-text-token opening-name-defter" />
+            </p>
+            <p className="opening-brand-assistant">
+              <span ref={openingAssistantTextRef} className="opening-text-token opening-assistant-token">Toplantı asistanı</span>
+            </p>
           </div>
           <div className="opening-start-credit-wrap">
             <p ref={openingPoweredRef} className="opening-brand-powered" aria-label="T3AI tarafından geliştirildi"><span className="opening-heart-light" aria-hidden="true">🤎</span><span className="opening-heart-dark" aria-hidden="true">🤍</span></p>
@@ -1030,7 +1116,7 @@ function Index() {
 
 function MeetingMascot({ startTop, isPaused }: { startTop: number | null; isPaused: boolean }) {
   return (
-    <div className="meeting-mascot" role="img" aria-label="Açılıp toplantı notlarını yazan T3AI DEFTER maskotu">
+    <div className="meeting-mascot" role="img" aria-label="Açılıp toplantı notlarını yazan T3AI DEFT3R maskotu">
       <ChromaKeyVideo
         src={writingVideo}
         poster={mascot}

@@ -2,7 +2,6 @@
 // meeting_scribe/server/app.py dosyasına bakılabilir.
 
 const API_BASE_URL = (import.meta.env["VITE_MEETING_SCRIBE_API_URL"] ?? "").replace(/\/$/, "");
-const API_KEY = import.meta.env["VITE_MEETING_SCRIBE_API_KEY"] ?? "";
 
 export class ApiError extends Error {
   status: number;
@@ -16,7 +15,6 @@ export class ApiError extends Error {
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
-  if (API_KEY) headers.set("X-API-Key", API_KEY);
 
   const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
   if (!response.ok) {
